@@ -119,7 +119,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     );
     final toplam = sonuclar['toplam'] ?? 0;
     final odeme = HesaplamaMotoru.odemeHesapla(
-      tesfikPuani: toplam,
+      tesvikPuani: toplam,
       unvan: _unvan,
       enYuksekBrutAylik: _enYuksekBrut,
     );
@@ -767,8 +767,12 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     if (f['quartile'] != null &&
         (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme'))
       parcalar.add(f['ahci'] == true ? 'AHCI' : f['quartile']);
-    if (f['rol'] != null) parcalar.add(f['rol']);
-    if (f['ay'] != null) parcalar.add('${f['ay']} ay');
+    if (f['kategori'] == 'proje' && f['rol'] != null)
+      parcalar.add(f['rol']);
+    if (f['kategori'] == 'arastirma' && f['ay'] != null)
+      parcalar.add('${f['ay']} ay');
+    if (f['kategori'] == 'sergi' && f['tekrar'] == 2)
+      parcalar.add('2. tekrar etkinlik');
     return parcalar.join(' · ');
   }
 
@@ -829,6 +833,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
   late int _kisi;
   late int _adet;
   late int _ay;
+  late int _tekrar;
 
   @override
   void initState() {
@@ -842,6 +847,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
     _kisi = m?['kisi'] ?? 1;
     _adet = m?['adet'] ?? 1;
     _ay = m?['ay'] ?? 4;
+    _tekrar = m?['tekrar'] ?? 1;
   }
 
   bool get _duzenlemeModu => widget.mevcutFaaliyet != null;
@@ -906,6 +912,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 if (_kategori == 'tasarim') _tur = 'tasarim';
                 _adet = 1;
                 _kisi = 1;
+                _tekrar = 1;
               }),
             ),
             const SizedBox(height: 12),
@@ -935,8 +942,30 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                   DropdownMenuItem(value: 'sesKarmaUlus', child: Text('3.16. Karma Ses/Görüntü (Uluslararası)')),
                   DropdownMenuItem(value: 'sesKisiselUlus2', child: Text('3.17. Kişisel Ses/Görüntü (Ulusal)')),
                 ],
-                onChanged: (v) => setState(() => _tur = v!),
+                onChanged: (v) => setState(() {
+                  _tur = v!;
+                  // Sabit oranlı satırlarda adet puanı etkilemez (m.7/4).
+                  if (HesaplamaMotoru.sabitPuanliYayinTurleri.contains(_tur)) {
+                    _adet = 1;
+                  }
+                }),
               ),
+              if (HesaplamaMotoru.editorlukTurleri.contains(_tur)) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'm.7/4: Farklı dergilerde de olsa yalnızca bir editörlük '
+                    'dikkate alınır. Birden fazla editörlük eklerseniz '
+                    'toplamda yalnızca en yüksek oranlı olan sayılır.',
+                    style: TextStyle(fontSize: 11, color: Colors.deepOrange),
+                  ),
+                ),
+              ],
               if (_tur == 'sciArastirma' || _tur == 'sciDerleme') ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -1120,6 +1149,15 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 ],
                 onChanged: (v) => setState(() => _tur = v!),
               ),
+              const SizedBox(height: 12),
+              _kisiSecici(),
+              const Padding(
+                padding: EdgeInsets.only(left: 8, bottom: 4),
+                child: Text(
+                    '* m.8/7: Ödül birden fazla kişiye verilmişse oran '
+                    'kişi sayısına bölünür.',
+                    style: TextStyle(color: Colors.orange, fontSize: 11)),
+              ),
             ],
 
             if (_kategori == 'sergi') ...[
@@ -1138,6 +1176,31 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 ],
                 onChanged: (v) => setState(() => _tur = v!),
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                value: _tekrar,
+                decoration: const InputDecoration(
+                  labelText: 'Etkinlik Tekrarı',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                      value: 1, child: Text('İlk etkinlik (tam puan)')),
+                  DropdownMenuItem(
+                      value: 2,
+                      child: Text('İkinci (tekrar) etkinlik (yarım puan)')),
+                ],
+                onChanged: (v) => setState(() => _tekrar = v!),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                child: Text(
+                    '* m.7/6: Tekrarlayan faaliyetler için en çok iki etkinlik '
+                    'dikkate alınır; ikinci tekrar etkinliğe öncekinin '
+                    'puanının yarısı verilir.',
+                    style: TextStyle(color: Colors.orange, fontSize: 11)),
+              ),
             ],
 
             if (_kategori == 'tasarim') ...[
@@ -1153,7 +1216,16 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 ),
               ),
               const SizedBox(height: 12),
+              _kisiSecici(),
+              const SizedBox(height: 12),
               _adetSecici('Tasarım Adedi'),
+              const Padding(
+                padding: EdgeInsets.only(left: 8, bottom: 4),
+                child: Text(
+                    '* m.8/7: Tasarımın paylaşım oranı bulunmadığından oran '
+                    'kişi sayısına bölünür.',
+                    style: TextStyle(color: Colors.orange, fontSize: 11)),
+              ),
             ],
 
             const SizedBox(height: 20),
@@ -1170,6 +1242,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                     'quartile': _quartile,
                     'ahci': _ahci,
                     'ay': _ay,
+                    'tekrar': _tekrar,
                   });
                 },
                 icon: Icon(_duzenlemeModu ? Icons.save : Icons.add),

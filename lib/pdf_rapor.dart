@@ -353,7 +353,10 @@ class PdfRapor {
                 if (toplamPuan < 30) ...[
                   pw.SizedBox(height: 8),
                   pw.Text(
-                    '⚠ Ödeme yapılabilmesi için minimum 30 puan gereklidir.',
+                    '⚠ Yönetmelik m.10/3: Akademik teşvik ödeneğinin '
+                    'ödenebilmesi için akademik teşvik puanının en az otuz '
+                    'olması gerekir; bu nedenle ödeme tutarı 0 olarak '
+                    'gösterilmiştir.',
                     style: pw.TextStyle(
                         font: font,
                         fontSize: 9,
@@ -381,6 +384,7 @@ class PdfRapor {
                 pw.SizedBox(height: 4),
                 pw.Text(
                   'Akademik Teşvik Ödemesi = En Yüksek Devlet Memuru Brüt Aylığı × Unvan Oranı × (Teşvik Puanı / 100)\n'
+                  'En Yüksek Devlet Memuru Brüt Aylığı (m.3/ç) = 9.500 gösterge × memur aylık katsayısı  |  Ödeme için en az 30 teşvik puanı gerekir (m.10/3)\n'
                   'k: Kişi katsayısı  |  p: Dergi çeyrek katsayısı (Q1=1.0, Q2=0.8, Q3=0.5, Q4=0.25, AHCI=0.5)  |  r: Proje rol katsayısı (Yürütücü=1.0, Araştırmacı=0.5)\n'
                   'Unvan oranları: Profesör %100, Doçent %90, Dr. Öğr. Üyesi %80, Araştırma/Öğretim Görevlisi %70',
                   style: pw.TextStyle(
@@ -431,8 +435,12 @@ class PdfRapor {
     if (f['quartile'] != null &&
         (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme'))
       parcalar.add(f['ahci'] == true ? 'AHCI' : f['quartile']);
-    if (f['rol'] != null) parcalar.add(f['rol']);
-    if (f['ay'] != null) parcalar.add('${f['ay']} ay');
+    if (f['kategori'] == 'proje' && f['rol'] != null)
+      parcalar.add(f['rol']);
+    if (f['kategori'] == 'arastirma' && f['ay'] != null)
+      parcalar.add('${f['ay']} ay');
+    if (f['kategori'] == 'sergi' && f['tekrar'] == 2)
+      parcalar.add('2. tekrar etkinlik');
     return parcalar.isEmpty ? '-' : parcalar.join(', ');
   }
 
