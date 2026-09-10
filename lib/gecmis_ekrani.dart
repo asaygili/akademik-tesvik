@@ -1,7 +1,11 @@
 // lib/gecmis_ekrani.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+
+import 'hesaplama_motoru.dart';
+import 'katsayi_servisi.dart';
 import 'pdf_rapor.dart';
+import 'tema.dart';
 
 class GecmisEkrani extends StatelessWidget {
   final Function({required Map kayit, required dynamic key}) onKayitDuzenle;
@@ -14,36 +18,49 @@ class GecmisEkrani extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Geçmiş Hesaplamalar'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
+        title: const Text('Geçmiş'),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: 'Tümünü Sil',
+            tooltip: 'Tüm kayıtları sil',
             onPressed: () => _tumunuSilDialog(context, box),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: ValueListenableBuilder(
         valueListenable: box.listenable(),
         builder: (context, Box b, _) {
           if (b.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history, size: 64, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('Henüz kayıt yok.',
-                      style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  SizedBox(height: 4),
-                  Text(
-                    'Hesapladıktan sonra "Geçmişe Kaydet" butonunu kullanın.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+            final renk = Theme.of(context).colorScheme;
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history_toggle_off_outlined,
+                        size: 48, color: renk.onSurfaceVariant),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Henüz kayıt yok',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: renk.onSurface),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Hesapla sekmesinde puanınızı hesaplayıp "Kaydet" '
+                      'ile buraya ekleyebilirsiniz.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: renk.onSurfaceVariant),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -51,7 +68,7 @@ class GecmisEkrani extends StatelessWidget {
           final keys = b.keys.toList().reversed.toList();
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             itemCount: keys.length,
             itemBuilder: (ctx, i) {
               final kayit = b.get(keys[i]) as Map;
@@ -75,8 +92,8 @@ class GecmisEkrani extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Bu kayıt eski formatta, faaliyet detayları bulunmuyor. Yeniden hesaplayıp kaydedin.'),
-          backgroundColor: Colors.orange,
+              'Bu kayıt eski formatta; faaliyet detayları bulunmuyor. '
+              'Yeniden hesaplayıp kaydedin.'),
           duration: Duration(seconds: 3),
         ),
       );
@@ -88,7 +105,6 @@ class GecmisEkrani extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Kayıt düzenleme ekranına yüklendi.'),
-        backgroundColor: Colors.blue,
         duration: Duration(seconds: 2),
       ),
     );
@@ -98,8 +114,8 @@ class GecmisEkrani extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Kaydı Sil'),
-        content: const Text('Bu kayıt silinecek. Emin misiniz?'),
+        title: const Text('Kaydı sil'),
+        content: const Text('Bu kayıt kalıcı olarak silinecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -110,7 +126,10 @@ class GecmisEkrani extends StatelessWidget {
               box.delete(key);
               Navigator.pop(ctx);
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
             child: const Text('Sil'),
           ),
         ],
@@ -122,9 +141,9 @@ class GecmisEkrani extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Tümünü Sil'),
-        content:
-            const Text('Tüm geçmiş kayıtlar silinecek. Emin misiniz?'),
+        title: const Text('Tüm kayıtları sil'),
+        content: const Text(
+            'Geçmişteki bütün kayıtlar kalıcı olarak silinecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -135,7 +154,10 @@ class GecmisEkrani extends StatelessWidget {
               box.clear();
               Navigator.pop(ctx);
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
             child: const Text('Sil'),
           ),
         ],
@@ -157,7 +179,8 @@ class GecmisEkrani extends StatelessWidget {
       alan: kayit['alan'] ?? 'A1',
       unvan: kayit['unvan'] ?? 'Profesör',
       enYuksekBrut:
-          (kayit['enYuksekBrut'] as num?)?.toDouble() ?? 45000,
+          (kayit['enYuksekBrut'] as num?)?.toDouble() ??
+              KatsayiServisi.varsayilanBrutAylik,
       faaliyetler: faaliyetler,
       sonuclar: sonuclar,
       toplamPuan: (kayit['puan'] as num?)?.toDouble() ?? 0,
@@ -185,242 +208,244 @@ class _KayitKarti extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tarih =
-        DateTime.tryParse(kayit['tarih'] ?? '') ?? DateTime.now();
+    final tema = Theme.of(context);
+    final renk = tema.colorScheme;
+
+    final tarih = DateTime.tryParse(kayit['tarih'] ?? '') ?? DateTime.now();
     final guncellenmeTarih = kayit['guncellenmeTarihi'] != null
         ? DateTime.tryParse(kayit['guncellenmeTarihi'])
         : null;
     final puan = (kayit['puan'] as num?)?.toDouble() ?? 0;
     final odeme = (kayit['odeme'] as num?)?.toDouble() ?? 0;
-    final alan = kayit['alan'] ?? '';
-    final unvan = kayit['unvan'] ?? '';
+    final alan = (kayit['alan'] ?? '') as String;
+    final unvan = (kayit['unvan'] ?? '') as String;
     final faaliyetSayisi = kayit['faaliyetSayisi'] ?? 0;
-    final not = kayit['not'] ?? '';
-    final bool duzenlenebilir =
-        kayit['faaliyetler'] != null &&
+    final not = (kayit['not'] ?? '') as String;
+    final duzenlenebilir = kayit['faaliyetler'] != null &&
         (kayit['faaliyetler'] as List).isNotEmpty;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Üst satır: tarih + butonlar ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
+    final yeterli = puan >= HesaplamaMotoru.enAzTesvikPuani;
+    final durumRengi = yeterli ? renk.primary : renk.error;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 8, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Tarih ve eylemler ──
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          Bicim.tarihSaat(tarih),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: renk.onSurface,
+                          ),
+                        ),
+                        if (guncellenmeTarih != null)
+                          Text(
+                            'Güncellendi: ${Bicim.tarihSaat(guncellenmeTarih)}',
+                            style: TextStyle(
+                                fontSize: 11, color: renk.onSurfaceVariant),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.download_outlined, size: 20),
+                    color: renk.onSurfaceVariant,
+                    tooltip: 'PDF raporu',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onPdf,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    color: duzenlenebilir
+                        ? renk.onSurfaceVariant
+                        : renk.onSurfaceVariant.withValues(alpha: 0.35),
+                    tooltip: duzenlenebilir
+                        ? 'Düzenle'
+                        : 'Eski kayıt · düzenlenemiyor',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: duzenlenebilir ? onDuzenle : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: renk.onSurfaceVariant,
+                    tooltip: 'Sil',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onSil,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // ── Puan ve ödeme ──
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.calendar_today,
-                            size: 13, color: Colors.grey),
-                        const SizedBox(width: 4),
                         Text(
-                          _tarihFormat(tarih),
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12),
+                          'Teşvik puanı',
+                          style: TextStyle(
+                              fontSize: 11.5, color: renk.onSurfaceVariant),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              Bicim.puan(puan),
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.8,
+                                height: 1.1,
+                                color: durumRengi,
+                              ),
+                            ),
+                            Text(
+                              ' / 100',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: renk.onSurfaceVariant),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    if (guncellenmeTarih != null)
-                      Row(
-                        children: [
-                          const Icon(Icons.update,
-                              size: 12, color: Colors.orange),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Güncellendi: ${_tarihFormat(guncellenmeTarih)}',
-                            style: const TextStyle(
-                                color: Colors.orange, fontSize: 11),
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Aylık ödeme',
+                          style: TextStyle(
+                              fontSize: 11.5, color: renk.onSurfaceVariant),
+                        ),
+                        Text(
+                          Bicim.para(odeme),
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            height: 1.25,
+                            color: renk.onSurface,
                           ),
-                        ],
-                      ),
+                        ),
+                        if (yeterli)
+                          Text(
+                            'yıllık ${Bicim.para(odeme * 12)}',
+                            style: TextStyle(
+                                fontSize: 11, color: renk.onSurfaceVariant),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 10),
+
+              // ── Yüz puanlık ölçekte doluluk ──
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: (puan / 100).clamp(0.0, 1.0),
+                    minHeight: 5,
+                    color: durumRengi,
+                    backgroundColor: renk.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+              if (!yeterli)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, size: 13, color: renk.error),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Ödeme için en az 30 puan gerekir (m.10/3)',
+                        style: TextStyle(fontSize: 11, color: renk.error),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 12),
+
+              // ── Etiketler ──
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _etiket(context, unvan),
+                  _etiket(context, alan),
+                  _etiket(context, '$faaliyetSayisi faaliyet'),
+                  if (!duzenlenebilir)
+                    _etiket(context, 'Eski kayıt', uyari: true),
+                ],
+              ),
+
+              if (not.isNotEmpty) ...[
+                const SizedBox(height: 10),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.picture_as_pdf_outlined,
-                          color: Colors.red, size: 22),
-                      tooltip: 'PDF İndir',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: onPdf,
-                    ),
-                    const SizedBox(width: 12),
-                    Tooltip(
-                      message: duzenlenebilir
-                          ? 'Düzenle'
-                          : 'Eski format – düzenlenemiyor',
-                      child: IconButton(
-                        icon: Icon(Icons.edit_outlined,
-                            color: duzenlenebilir
-                                ? Colors.blue
-                                : Colors.grey,
-                            size: 22),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: duzenlenebilir ? onDuzenle : null,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          color: Colors.red, size: 22),
-                      tooltip: 'Sil',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: onSil,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // ── Chip'ler ──
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                _chip(unvan, Colors.blue),
-                _chip(alan, Colors.purple),
-                _chip('$faaliyetSayisi faaliyet', Colors.grey),
-                if (duzenlenebilir)
-                  _chip('✏️ Düzenlenebilir', Colors.green)
-                else
-                  _chip('⚠️ Eski format', Colors.orange),
-              ],
-            ),
-
-            // ── Not ──
-            if (not.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.note_outlined,
-                        size: 13, color: Colors.amber),
-                    const SizedBox(width: 4),
+                    Icon(Icons.sticky_note_2_outlined,
+                        size: 14, color: renk.onSurfaceVariant),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         not,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 10),
-
-            // ── Puan + Ödeme ──
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Teşvik Puanı',
                         style: TextStyle(
-                            color: Colors.grey, fontSize: 11)),
-                    Text(
-                      puan.toStringAsFixed(2),
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: puan >= 30
-                            ? Colors.green.shade700
-                            : Colors.red.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('Aylık Ödeme',
-                        style: TextStyle(
-                            color: Colors.grey, fontSize: 11)),
-                    Text(
-                      '₺${odeme.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                            fontSize: 12,
+                            height: 1.35,
+                            color: renk.onSurfaceVariant),
                       ),
                     ),
                   ],
                 ),
               ],
-            ),
-
-            Text(
-              'Yıllık: ₺${(odeme * 12).toStringAsFixed(2)}',
-              style:
-                  const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-
-            if (puan < 30)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber,
-                        color: Colors.orange, size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      'Ödeme için 30 puan gerekli',
-                      style: TextStyle(
-                          color: Colors.orange, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _chip(String label, Color renk) {
+  Widget _etiket(BuildContext context, String metin, {bool uyari = false}) {
+    final renk = Theme.of(context).colorScheme;
+    final zemin = uyari
+        ? renk.errorContainer
+        : renk.surfaceContainerHighest.withValues(alpha: 0.7);
+    final yazi = uyari ? renk.onErrorContainer : renk.onSurfaceVariant;
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: renk.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: renk.withOpacity(0.3)),
+        color: zemin,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        label,
+        metin,
         style: TextStyle(
-            fontSize: 11,
-            color: renk,
-            fontWeight: FontWeight.w500),
+            fontSize: 11.5, color: yazi, fontWeight: FontWeight.w500),
       ),
     );
-  }
-
-  String _tarihFormat(DateTime t) {
-    return '${t.day.toString().padLeft(2, '0')}.'
-        '${t.month.toString().padLeft(2, '0')}.'
-        '${t.year}  '
-        '${t.hour.toString().padLeft(2, '0')}:'
-        '${t.minute.toString().padLeft(2, '0')}';
   }
 }

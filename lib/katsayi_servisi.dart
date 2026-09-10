@@ -20,6 +20,10 @@ class KatsayiServisi {
   static double brutAylik(double memurAylikKatsayisi) =>
       HesaplamaMotoru.gostergeToplami * memurAylikKatsayisi;
 
+  /// İnternet erişimi yokken kullanılacak brüt aylık.
+  static double get varsayilanBrutAylik =>
+      brutAylik(_varsayilanMemurAylikKatsayisi);
+
   // Uygulamada kullanılacak ana metod
   // Önce cache'den okur, arka planda günceller
   static Future<Map<String, dynamic>> katsayiGetir() async {

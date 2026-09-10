@@ -2,6 +2,7 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'bicim.dart';
 import 'hesaplama_motoru.dart';
 
 class PdfRapor {
@@ -144,7 +145,7 @@ class PdfRapor {
                 _pdfSatir(font, fontBold, 'Kadro Unvanı', unvan),
                 _pdfSatir(font, fontBold, 'Bilim Alanı', _alanAdi(alan)),
                 _pdfSatir(font, fontBold, 'En Yüksek Brüt Aylık',
-                    '₺${enYuksekBrut.toStringAsFixed(2)}'),
+                    Bicim.para(enYuksekBrut)),
               ],
             ),
           ),
@@ -270,7 +271,7 @@ class PdfRapor {
                     _tdCell(font, r[2]),
                     _tdCell(
                         varMi ? fontBold : font,
-                        puan.toStringAsFixed(2),
+                        Bicim.puan(puan),
                         color: varMi
                             ? PdfColors.green800
                             : PdfColors.grey500),
@@ -305,7 +306,7 @@ class PdfRapor {
                         style: pw.TextStyle(
                             font: fontBold, fontSize: 12)),
                     pw.Text(
-                      '${toplamPuan.toStringAsFixed(2)} / 100',
+                      '${Bicim.puan(toplamPuan)} / 100',
                       style: pw.TextStyle(
                         font: fontBold,
                         fontSize: 14,
@@ -326,7 +327,7 @@ class PdfRapor {
                         style: pw.TextStyle(
                             font: fontBold, fontSize: 12)),
                     pw.Text(
-                      '₺${odeme.toStringAsFixed(2)}',
+                      Bicim.para(odeme),
                       style: pw.TextStyle(
                           font: fontBold,
                           fontSize: 14,
@@ -342,7 +343,7 @@ class PdfRapor {
                         style:
                             pw.TextStyle(font: font, fontSize: 10)),
                     pw.Text(
-                      '₺${(odeme * 12).toStringAsFixed(2)}',
+                      Bicim.para(odeme * 12),
                       style: pw.TextStyle(
                           font: fontBold,
                           fontSize: 11,
@@ -399,7 +400,7 @@ class PdfRapor {
           pw.SizedBox(height: 8),
           pw.Text(
             'Bu rapor Akademik Teşvik Hesaplama uygulaması tarafından '
-            '${tarihStr} tarihinde oluşturulmuştur. '
+            '$tarihStr tarihinde oluşturulmuştur. '
             'Resmi başvurularda ilgili komisyon kararları geçerlidir.',
             style: pw.TextStyle(
                 font: font,
@@ -428,19 +429,25 @@ class PdfRapor {
 
   static String _faaliyetDetayPdf(Map<String, dynamic> f) {
     List<String> parcalar = [];
-    if (f['adet'] != null && f['adet'] > 1)
+    if (f['adet'] != null && f['adet'] > 1) {
       parcalar.add('${f['adet']} adet');
-    if (f['kisi'] != null && f['kisi'] > 1)
+    }
+    if (f['kisi'] != null && f['kisi'] > 1) {
       parcalar.add('${f['kisi']} kişi');
+    }
     if (f['quartile'] != null &&
-        (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme'))
+        (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme')) {
       parcalar.add(f['ahci'] == true ? 'AHCI' : f['quartile']);
-    if (f['kategori'] == 'proje' && f['rol'] != null)
+    }
+    if (f['kategori'] == 'proje' && f['rol'] != null) {
       parcalar.add(f['rol']);
-    if (f['kategori'] == 'arastirma' && f['ay'] != null)
+    }
+    if (f['kategori'] == 'arastirma' && f['ay'] != null) {
       parcalar.add('${f['ay']} ay');
-    if (f['kategori'] == 'sergi' && f['tekrar'] == 2)
+    }
+    if (f['kategori'] == 'sergi' && f['tekrar'] == 2) {
       parcalar.add('2. tekrar etkinlik');
+    }
     return parcalar.isEmpty ? '-' : parcalar.join(', ');
   }
 

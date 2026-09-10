@@ -4,6 +4,8 @@
 // Bakanlar Kurulu Kararı; 16/1/2020 tarihli ve 2043 sayılı Cumhurbaşkanı Kararı
 // ile değişik) esas alınarak hazırlanmıştır.
 
+import 'bicim.dart';
+
 class HesaplamaMotoru {
   // ── SABİTLER ────────────────────────────────────────────────
 
@@ -339,23 +341,23 @@ class HesaplamaMotoru {
     String gosterim(String formul) {
       final double tavan = tavanlar[kategori] ?? 0;
       final double gercekPuan = oran / 100 * tavan;
-      return '$formul = %${oran.toStringAsFixed(2)} oran → '
-          '${oran.toStringAsFixed(2)}/100 × ${tavan.toStringAsFixed(0)} (tavan) = '
-          '${gercekPuan.toStringAsFixed(2)} puan';
+      return '$formul = ${Bicim.oran(oran)} oran; '
+          '${Bicim.oran(oran)} × ${Bicim.sayi(tavan, basamak: 0)} (tavan) = '
+          '${Bicim.puan(gercekPuan)} puan';
     }
 
     // Oran sıfırsa nedenini açıkça yaz.
     if (oran == 0) {
       if (kategori == 'arastirma') {
         return 'Dört aydan kısa araştırmalar değerlendirmeye alınmaz '
-            '(m.3/ş) → 0,00 puan';
+            '(m.3/ş): 0,00 puan';
       }
       if (kategori == 'sergi' && tekrar > 2) {
         return 'Tekrarlayan faaliyetlerde en çok iki etkinlik dikkate alınır '
-            '(m.7/6) → 0,00 puan';
+            '(m.7/6): 0,00 puan';
       }
       return 'Bu faaliyet türü seçilen bilim alanında ($alan) '
-          'puanlanmaz → 0,00 puan';
+          'puanlanmaz: 0,00 puan';
     }
 
     switch (kategori) {
@@ -363,51 +365,55 @@ class HesaplamaMotoru {
         final double carpan = yayinCarpani(tur, alan);
         if (tur == 'sciArastirma' || tur == 'sciDerleme') {
           return gosterim(
-              'k($kisi)=${k.toStringAsFixed(2)} × p(${ahci ? "AHCI" : quartile})='
-              '${p.toStringAsFixed(2)} × ${carpan.toStringAsFixed(0)} × $adet adet');
+              'k($kisi)=${Bicim.sayi(k)} × p(${ahci ? "AHCI" : quartile})='
+              '${Bicim.sayi(p)} × ${Bicim.sayi(carpan, basamak: 0)} × '
+              '$adet adet');
         }
         if (editorlukTurleri.contains(tur)) {
-          return gosterim('Sabit ${carpan.toStringAsFixed(0)} oran '
+          return gosterim('Sabit ${Bicim.sayi(carpan, basamak: 0)} oran '
               '(m.7/4: yalnızca bir editörlük sayılır)');
         }
         if (sabitPuanliYayinTurleri.contains(tur)) {
-          return gosterim('Sabit ${carpan.toStringAsFixed(0)} oran');
+          return gosterim('Sabit ${Bicim.sayi(carpan, basamak: 0)} oran');
         }
-        return gosterim('k($kisi)=${k.toStringAsFixed(2)} × '
-            '${carpan.toStringAsFixed(0)} × $adet adet');
+        return gosterim('k($kisi)=${Bicim.sayi(k)} × '
+            '${Bicim.sayi(carpan, basamak: 0)} × $adet adet');
 
       case 'atif':
         final double birim = atifBirimi(tur: tur, alan: alan);
-        return gosterim('${birim.toStringAsFixed(1)} oran/atıf × $adet atıf');
+        return gosterim(
+            '${Bicim.sayi(birim, basamak: 1)} oran/atıf × $adet atıf');
 
       case 'teblig':
-        return gosterim(
-            'k($kisi)=${k.toStringAsFixed(2)} × 15 × $adet adet');
+        return gosterim('k($kisi)=${Bicim.sayi(k)} × 15 × $adet adet');
 
       case 'proje':
-        return gosterim('r($rol)=${r.toStringAsFixed(1)} × '
-            '${projeCarpani(tur).toStringAsFixed(0)} × $adet adet');
+        return gosterim('r($rol)=${Bicim.sayi(r, basamak: 1)} × '
+            '${Bicim.sayi(projeCarpani(tur), basamak: 0)} × $adet adet');
 
       case 'arastirma':
         final double carpan = tur == 'yurtdisi' ? 15 : 10;
-        return gosterim('${carpan.toStringAsFixed(0)} × $ay ay');
+        return gosterim(
+            '${Bicim.sayi(carpan, basamak: 0)} × $ay ay');
 
       case 'patent':
         final int carpan = tur == 'uluslararasi' ? 100 : 60;
         return gosterim(
-            'k($kisi)=${k.toStringAsFixed(2)} × $carpan × $adet adet');
+            'k($kisi)=${Bicim.sayi(k)} × $carpan × $adet adet');
 
       case 'odul':
         final double birim = odulBirimi(tur: tur, alan: alan);
         if (kisi > 1) {
-          return gosterim('${birim.toStringAsFixed(0)} oran / $kisi kişi '
-              '(m.8/7)');
+          return gosterim(
+              '${Bicim.sayi(birim, basamak: 0)} oran / $kisi kişi (m.8/7)');
         }
-        return gosterim('Sabit ${birim.toStringAsFixed(0)} oran');
+        return gosterim('Sabit ${Bicim.sayi(birim, basamak: 0)} oran');
 
       case 'sergi':
         final double birim = sergiBirimi(tur);
-        final List<String> parcalar = ['${birim.toStringAsFixed(0)} oran'];
+        final List<String> parcalar = [
+          '${Bicim.sayi(birim, basamak: 0)} oran'
+        ];
         final bool karma = tur == 'yurtdisiGrup' || tur == 'yurticiiGrup';
         if (kisi > 1) {
           parcalar.add(karma
