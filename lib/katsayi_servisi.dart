@@ -3,12 +3,26 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'hesaplama_motoru.dart';
+
 class KatsayiServisi {
   static const String _jsonUrl =
       'https://raw.githubusercontent.com/asaygili/akademik-tesvik-data/main/katsayi.json';
 
   static const String _hiveKey = 'katsayi_verisi';
-  static const double _varsayilanBrut = 45000;
+
+  /// Çevrimdışı varsayılan memur aylık katsayısı (Temmuz 2026).
+  /// Yönetmelik m.3/ç uyarınca en yüksek Devlet memuru brüt aylığı
+  /// 9.500 gösterge × memur aylık katsayısı ile bulunur.
+  static const double _varsayilanMemurAylikKatsayisi = 1.575512;
+
+  /// m.3/ç: en yüksek Devlet memuru brüt aylığı.
+  static double brutAylik(double memurAylikKatsayisi) =>
+      HesaplamaMotoru.gostergeToplami * memurAylikKatsayisi;
+
+  /// İnternet erişimi yokken kullanılacak brüt aylık.
+  static double get varsayilanBrutAylik =>
+      brutAylik(_varsayilanMemurAylikKatsayisi);
 
   // Uygulamada kullanılacak ana metod
   // Önce cache'den okur, arka planda günceller
@@ -19,7 +33,7 @@ class KatsayiServisi {
     // Cache'den oku
     final cached = box.get(_hiveKey);
     if (cached != null) {
-      sonuc = Map<String, dynamic>.from(cached as Map);
+      sonuc = _normalize(Map<String, dynamic>.from(cached as Map));
     }
 
     // Arka planda güncel veriyi çek
@@ -55,18 +69,39 @@ class KatsayiServisi {
         final veri = jsonDecode(response.body) as Map<String, dynamic>;
         final box = Hive.box('gecmis');
         await box.put(_hiveKey, veri);
-        return veri;
+        return _normalize(veri);
       }
     } catch (_) {}
     return _varsayilanVeri();
   }
 
+  /// Gelen veride memur aylık katsayısı varsa brüt aylığı m.3/ç formülüyle
+  /// hesaplar; yoksa doğrudan verilen brüt aylığı kullanır. Hiçbiri geçerli
+  /// değilse çevrimdışı varsayılana döner.
+  static Map<String, dynamic> _normalize(Map<String, dynamic> veri) {
+    final sonuc = Map<String, dynamic>.from(veri);
+
+    final katsayi = (veri['memurAylikKatsayisi'] as num?)?.toDouble();
+    final brut = (veri['enYuksekBrut'] as num?)?.toDouble();
+
+    if (katsayi != null && katsayi > 0) {
+      sonuc['enYuksekBrut'] = brutAylik(katsayi);
+    } else if (brut != null && brut > 0) {
+      sonuc['enYuksekBrut'] = brut;
+    } else {
+      return _varsayilanVeri();
+    }
+    return sonuc;
+  }
+
   static Map<String, dynamic> _varsayilanVeri() {
     return {
-      'enYuksekBrut': _varsayilanBrut,
-      'aciklama': 'Varsayılan değer (internet bağlantısı yok)',
-      'guncelleme': '2026-01',
-      'sonrakiZam': '2026-07',
+      'enYuksekBrut': brutAylik(_varsayilanMemurAylikKatsayisi),
+      'memurAylikKatsayisi': _varsayilanMemurAylikKatsayisi,
+      'aciklama':
+          'Varsayılan değer (internet bağlantısı yok) – Temmuz 2026 katsayısı',
+      'guncelleme': '2026-07',
+      'sonrakiZam': '2027-01',
     };
   }
 }

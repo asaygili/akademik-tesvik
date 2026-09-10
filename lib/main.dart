@@ -1,9 +1,11 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'hesaplama_ekrani.dart';
+
 import 'gecmis_ekrani.dart';
+import 'hesaplama_ekrani.dart';
 import 'iletisim_ekrani.dart';
+import 'tema.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,19 +22,9 @@ class AkademikTesvik extends StatelessWidget {
     return MaterialApp(
       title: 'Akademik Teşvik',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
+      theme: AkademikTema.acik(),
+      darkTheme: AkademikTema.koyu(),
+      themeMode: ThemeMode.system,
       home: const AnaSayfa(),
     );
   }

@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'hesaplama_motoru.dart';
-import 'pdf_rapor.dart';
 import 'katsayi_servisi.dart';
+import 'pdf_rapor.dart';
+import 'puan_gostergesi.dart';
+import 'tema.dart';
 
 class HesaplamaEkrani extends StatefulWidget {
   final Map<String, dynamic>? duzenlenecekKayit;
@@ -24,7 +26,7 @@ class HesaplamaEkrani extends StatefulWidget {
 class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
   String _alan = 'A1';
   String _unvan = 'Profesör';
-  double _enYuksekBrut = 45000;
+  double _enYuksekBrut = KatsayiServisi.varsayilanBrutAylik;
   String _katsayiAciklama = '';
   bool _katsayiYuklendi = false;
   final List<Map<String, dynamic>> _faaliyetler = [];
@@ -35,6 +37,15 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
   bool _hesaplandimi = false;
   bool _duzenlemeModu = false;
   dynamic _duzenlenenKey;
+
+  final ScrollController _kaydirmaKumandasi = ScrollController();
+  final GlobalKey _sonucAnahtari = GlobalKey();
+
+  @override
+  void dispose() {
+    _kaydirmaKumandasi.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(HesaplamaEkrani oldWidget) {
@@ -57,7 +68,8 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     if (mounted) {
       setState(() {
         _enYuksekBrut =
-            (veri['enYuksekBrut'] as num?)?.toDouble() ?? 45000;
+            (veri['enYuksekBrut'] as num?)?.toDouble() ??
+            KatsayiServisi.varsayilanBrutAylik;
         final aciklama = veri['aciklama'] ?? '';
         final varsayilanMi = aciklama.contains('internet') ||
             aciklama.contains('Varsayılan');
@@ -74,7 +86,8 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
       _alan = kayit['alan'] ?? 'A1';
       _unvan = kayit['unvan'] ?? 'Profesör';
       _enYuksekBrut =
-          (kayit['enYuksekBrut'] as num?)?.toDouble() ?? 45000;
+          (kayit['enYuksekBrut'] as num?)?.toDouble() ??
+          KatsayiServisi.varsayilanBrutAylik;
       _faaliyetler.clear();
       final liste = kayit['faaliyetler'] as List?;
       if (liste != null) {
@@ -119,7 +132,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     );
     final toplam = sonuclar['toplam'] ?? 0;
     final odeme = HesaplamaMotoru.odemeHesapla(
-      tesfikPuani: toplam,
+      tesvikPuani: toplam,
       unvan: _unvan,
       enYuksekBrutAylik: _enYuksekBrut,
     );
@@ -129,12 +142,25 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
       _odeme = odeme;
       _hesaplandimi = true;
     });
+
+    // Sonuç kartı katlamanın altında kaldığı için görünür alana getir.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final baglam = _sonucAnahtari.currentContext;
+      if (baglam != null) {
+        Scrollable.ensureVisible(
+          baglam,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          alignment: 0.1,
+        );
+      }
+    });
   }
 
   void _kaydet() {
     if (!_hesaplandimi) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Önce hesaplayın!')),
+        const SnackBar(content: Text('Önce hesaplayın.')),
       );
       return;
     }
@@ -164,8 +190,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
       box.put(_duzenlenenKey, veri);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Kayıt güncellendi!'),
-          backgroundColor: Colors.orange,
+          content: Text('Kayıt güncellendi.'),
         ),
       );
       setState(() {
@@ -177,8 +202,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
       box.add(veri);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Kayıt başarıyla eklendi!'),
-          backgroundColor: Colors.green,
+          content: Text('Kayıt geçmişe eklendi.'),
         ),
       );
     }
@@ -200,7 +224,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
   void _pdfOlustur() {
     if (!_hesaplandimi) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Önce hesaplayın!')),
+        const SnackBar(content: Text('Önce hesaplayın.')),
       );
       return;
     }
@@ -238,565 +262,723 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     );
   }
 
+  // ── Anlık kategori puanları (canlı geri bildirim) ────────────
+  Map<String, double> get _anlikSonuclar => HesaplamaMotoru.toplamHesapla(
+        alan: _alan,
+        faaliyetler: _faaliyetler,
+      );
+
+  /// m.7/4: birden fazla editörlük girildiğinde toplama yalnızca en yüksek
+  /// oranlı olan katılır; diğer satırlar listede sayılmadı olarak işaretlenir.
+  bool _editorlukSayilmiyor(int index) {
+    final f = _faaliyetler[index];
+    if (f['kategori'] != 'yayin') return false;
+    if (!HesaplamaMotoru.editorlukTurleri.contains(f['tur'])) return false;
+
+    final benim = HesaplamaMotoru.faaliyetOrani(f: f, alan: _alan);
+    for (int i = 0; i < _faaliyetler.length; i++) {
+      final d = _faaliyetler[i];
+      if (d['kategori'] != 'yayin') continue;
+      if (!HesaplamaMotoru.editorlukTurleri.contains(d['tur'])) continue;
+      final oran = HesaplamaMotoru.faaliyetOrani(f: d, alan: _alan);
+      if (oran > benim || (oran == benim && i < index)) return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final renk = Theme.of(context).colorScheme;
+    final tema = Theme.of(context);
+    final renk = tema.colorScheme;
+    final anlik = _anlikSonuclar;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_duzenlemeModu
-            ? '✏️ Kayıt Düzenleniyor'
-            : 'Akademik Teşvik Hesaplama'),
-        backgroundColor:
-            _duzenlemeModu ? Colors.orange.shade700 : renk.primary,
-        foregroundColor: Colors.white,
+            ? 'Kayıt düzenleniyor'
+            : 'Akademik Teşvik'),
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf_outlined),
-            tooltip: 'PDF Oluştur',
+            tooltip: 'PDF raporu oluştur',
             onPressed: _pdfOlustur,
           ),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Sıfırla',
+            icon: const Icon(Icons.restart_alt),
+            tooltip: 'Formu sıfırla',
             onPressed: _sifirla,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        controller: _kaydirmaKumandasi,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Düzenleme modu banner ──
-            if (_duzenlemeModu)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade300),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.edit, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Geçmiş kayıt düzenleniyor. Değişiklik yapıp tekrar hesaplayın ve kaydedin.',
-                        style: TextStyle(
-                            color: Colors.orange, fontSize: 12),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _sifirla,
-                      child: const Text('İptal',
-                          style: TextStyle(color: Colors.orange)),
-                    ),
-                  ],
-                ),
-              ),
+            if (_duzenlemeModu) _duzenlemeBanneri(),
 
-            // ── Unvan ve Alan Bilgileri ──
-            _baslik('Unvan ve Alan Bilgileri'),
-            const SizedBox(height: 4),
-            const Text(
-              'Faaliyetlerinizi girmeden önce unvanınızı ve çalışma alanınızı seçiniz.',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+            _bolumBasligi(
+              'Unvan ve alan',
+              'Ödeme oranı unvana, faaliyet çarpanları bilim alanına göre '
+                  'belirlenir.',
             ),
-            const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: _alan,
-                      decoration: const InputDecoration(
-                        labelText: 'Bilim Alanı',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'A1',
-                            child: Text(
-                                'A1 – Fen/Müh/Sağlık/Ziraat/Eğitim')),
-                        DropdownMenuItem(
-                            value: 'A2',
-                            child: Text(
-                                'A2 – Sosyal/Hukuk/İlahiyat/Filoloji')),
-                        DropdownMenuItem(
-                            value: 'A3',
-                            child: Text('A3 – Mimarlık/Tasarım')),
-                        DropdownMenuItem(
-                            value: 'A4',
-                            child: Text('A4 – Güzel Sanatlar')),
-                      ],
-                      onChanged: (v) => setState(() {
-                        _alan = v!;
-                        _hesaplandimi = false;
-                      }),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _unvan,
-                      decoration: const InputDecoration(
-                        labelText: 'Kadro Unvanı',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Profesör',
-                            child: Text('Profesör (%100)')),
-                        DropdownMenuItem(
-                            value: 'Doçent',
-                            child: Text('Doçent (%90)')),
-                        DropdownMenuItem(
-                            value: 'Dr. Öğr. Üyesi',
-                            child: Text('Dr. Öğr. Üyesi (%80)')),
-                        DropdownMenuItem(
-                            value: 'Araştırma Görevlisi',
-                            child: Text('Araştırma Görevlisi (%70)')),
-                        DropdownMenuItem(
-                            value: 'Öğretim Görevlisi',
-                            child: Text('Öğretim Görevlisi (%70)')),
-                      ],
-                      onChanged: (v) => setState(() => _unvan = v!),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      key: ValueKey(_enYuksekBrut),
-                      initialValue: _enYuksekBrut.toStringAsFixed(2),
-                      decoration: InputDecoration(
-                        labelText:
-                            'En Yüksek Devlet Memuru Brüt Aylığı (₺)',
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                        helperText: _katsayiAciklama.isNotEmpty
-                            ? _katsayiAciklama
-                            : 'Güncel değer yükleniyor...',
-                        helperStyle: TextStyle(
-                          color: _katsayiYuklendi
-                              ? Colors.green.shade700
-                              : Colors.orange,
-                          fontSize: 11,
-                        ),
-                        suffixIcon: Tooltip(
-                          message: 'Güncel değeri internetten çek',
-                          child: IconButton(
-                            icon: const Icon(Icons.sync, size: 20),
-                            onPressed: () => _katsayiYukle(zorla: true),
-                          ),
-                        ),
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (v) {
-                        _enYuksekBrut =
-                            double.tryParse(v) ?? _enYuksekBrut;
-                      },
-                    ),
-                  ],
-                ),
-              ),
+            const SizedBox(height: 10),
+            _kimlikKarti(),
+
+            const SizedBox(height: 24),
+            _bolumBasligi(
+              'Faaliyetler',
+              _faaliyetler.isEmpty
+                  ? 'Yönetmelik Tablo 4 kapsamındaki faaliyetlerinizi ekleyin.'
+                  : '${_faaliyetler.length} faaliyet · anlık toplam '
+                      '${Bicim.puan(anlik['toplam'] ?? 0)} puan',
             ),
+            const SizedBox(height: 10),
 
-            const SizedBox(height: 16),
+            if (_faaliyetler.isEmpty)
+              _bosDurum()
+            else
+              ..._kategoriGruplari(anlik),
 
-            // ── Faaliyetler ──
-            _baslik('Faaliyetler'),
-            const SizedBox(height: 8),
-
-            ..._kategoriGruplari(),
-
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _faaliyetDialog,
-                icon: const Icon(Icons.add),
-                label: const Text('Yeni Faaliyet Ekle'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('Faaliyet ekle'),
               ),
             ),
 
             const SizedBox(height: 16),
-
-            // ── Hesapla ──
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: _faaliyetler.isEmpty ? null : _hesapla,
-                icon: const Icon(Icons.calculate),
-                label: const Text('Hesapla',
-                    style: TextStyle(fontSize: 16)),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+                icon: const Icon(Icons.calculate_outlined, size: 20),
+                label: const Text('Hesapla'),
               ),
             ),
 
-            // ── Sonuçlar ──
             if (_hesaplandimi) ...[
-              const SizedBox(height: 16),
-              Card(
-                color: _toplamPuan >= 30
-                    ? Colors.green.shade50
-                    : Colors.red.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Sonuçlar',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                  fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      ..._sonuclar.entries
-                          .where((e) =>
-                              e.key != 'toplam' && e.value > 0)
-                          .map((e) => _sonucSatiri(e.key, e.value)),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('TOPLAM PUAN',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16)),
-                          Text(
-                            '${_toplamPuan.toStringAsFixed(2)} / 100',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: _toplamPuan >= 30
-                                  ? Colors.green.shade700
-                                  : Colors.red.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_toplamPuan < 30)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            '⚠️ Ödeme için minimum 30 puan gereklidir.',
-                            style: TextStyle(
-                                color: Colors.red, fontSize: 12),
-                          ),
-                        ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('AYLIK ÖDEME',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16)),
-                          Text(
-                            '₺${_odeme.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '12 ay × ₺${_odeme.toStringAsFixed(2)} = ₺${(_odeme * 12).toStringAsFixed(2)} / yıl',
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 12),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _kaydet,
-                              icon: Icon(_duzenlemeModu
-                                  ? Icons.update
-                                  : Icons.save_outlined),
-                              label: Text(_duzenlemeModu
-                                  ? 'Güncelle ve Kaydet'
-                                  : 'Geçmişe Kaydet'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _pdfOlustur,
-                              icon: const Icon(
-                                  Icons.picture_as_pdf_outlined),
-                              label: const Text('PDF İndir'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 20),
+              _sonucKarti(key: _sonucAnahtari),
+            ] else if (_faaliyetler.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  'Ödeme tutarı için hesaplayın.',
+                  style: tema.textTheme.bodySmall
+                      ?.copyWith(color: renk.onSurfaceVariant),
                 ),
               ),
             ],
-
-            const SizedBox(height: 80),
           ],
         ),
       ),
     );
   }
 
-  List<Widget> _kategoriGruplari() {
-    final kategoriler = {
-      'proje': '1. Proje (20 puan)',
-      'arastirma': '2. Araştırma (15 puan)',
-      'yayin': '3. Yayın (30 puan)',
-      'tasarim': '4. Tasarım (15 puan)',
-      'sergi': '5. Sergi (15 puan)',
-      'patent': '6. Patent (30 puan)',
-      'atif': '7. Atıf (30 puan)',
-      'teblig': '8. Tebliğ (20 puan)',
-      'odul': '9. Ödül (20 puan)',
-    };
-
-    final renkler = {
-      'proje': Colors.blue,
-      'arastirma': Colors.purple,
-      'yayin': Colors.green,
-      'tasarim': Colors.brown,
-      'sergi': Colors.pink,
-      'patent': Colors.orange,
-      'atif': Colors.teal,
-      'teblig': Colors.indigo,
-      'odul': Colors.amber,
-    };
-
-    List<Widget> widgets = [];
-    kategoriler.forEach((key, baslik) {
-      final ilgili =
-          _faaliyetler.where((f) => f['kategori'] == key).toList();
-      if (ilgili.isEmpty) return;
-
-      widgets.add(const SizedBox(height: 8));
-      widgets.add(Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-              color: (renkler[key] ?? Colors.grey).withOpacity(0.3)),
-          borderRadius: BorderRadius.circular(12),
+  // ── Bölüm başlığı ────────────────────────────────────────────
+  Widget _bolumBasligi(String baslik, [String? aciklama]) {
+    final tema = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          baslik,
+          style: tema.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color:
-                    (renkler[key] ?? Colors.grey).withOpacity(0.1),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(11)),
-              ),
-              child: Text(
-                baslik,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: renkler[key] ?? Colors.grey,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            ...ilgili.asMap().entries.map((entry) {
-              final globalIndex = _faaliyetler.indexOf(entry.value);
-              final f = entry.value;
-              final aciklama = HesaplamaMotoru.puanAciklamasi(
-                  f: f, alan: _alan);
-              return Column(
-                children: [
-                  if (entry.key > 0)
-                    const Divider(height: 1, indent: 12),
-                  ListTile(
-                    dense: true,
-                    title: Text(
-                      _faaliyetAdi(f),
-                      style: const TextStyle(fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _faaliyetDetay(f),
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.grey),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (renkler[key] ?? Colors.grey)
-                                .withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '📐 $aciklama',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: renkler[key] ?? Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    isThreeLine: true,
-                    trailing: SizedBox(
-                      width: 80,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.edit_outlined,
-                                color: renkler[key], size: 20),
-                            tooltip: 'Güncelle',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _faaliyetDialog(
-                                duzenleIndex: globalIndex),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                color: Colors.red, size: 20),
-                            tooltip: 'Sil',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _faaliyetSil(globalIndex),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }),
-          ],
-        ),
-      ));
-    });
-
-    return widgets;
-  }
-
-  Widget _baslik(String metin) {
-    return Text(
-      metin,
-      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        if (aciklama != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            aciklama,
+            style: tema.textTheme.bodySmall
+                ?.copyWith(color: tema.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ],
     );
   }
 
-  String _faaliyetAdi(Map<String, dynamic> f) {
-    final turAdlari = {
-      'sciArastirma': '3.1. SCI/SSCI/AHCI Araştırma Makalesi',
-      'sciDerleme': '3.2. SCI/SSCI/AHCI Derleme Makale',
-      'alanEndeksi': '3.3. Alan Endeksi Makalesi',
-      'digerUlus': '3.4. Diğer Uluslararası Hakemli Makale',
-      'ulakbim': '3.5. ULAKBİM TR Dizin Makalesi',
-      'editSciExpanded': '3.6. SCI/SSCI/AHCI Editörlük',
-      'editAlan': '3.7. Alan Endeksi Editörlük',
-      'editDigerUlus': '3.8. Diğer Uluslararası Editörlük',
-      'editUlakbim': '3.9. ULAKBİM Editörlük',
-      'kitapUlusYazar': '3.10. Uluslararası Kitap (Yazar)',
-      'kitapUlusEditor': '3.11. Uluslararası Kitap (Editör)',
-      'kitapUlusBolum': '3.12. Uluslararası Kitap Bölümü',
-      'sesKisiselUlus': '3.15. Kişisel Ses/Görüntü (Uluslararası)',
-      'sesKarmaUlus': '3.16. Karma Ses/Görüntü (Uluslararası)',
-      'sesKisiselUlus2': '3.17. Kişisel Ses/Görüntü (Ulusal)',
-      'H2020': '1.3. H2020 / Horizon Projesi',
-      '1001': '1.1. TÜBİTAK 1001/1003/1004/1007/1505/2244/3501/SAYEM/COST',
-      '1005': '1.2. TÜBİTAK 1005/3001',
-      'ulusUzel': '1.4. Diğer Uluslararası Proje',
-      'ulusOzel': '1.5. Diğer Ulusal Proje',
-      'yurtdisi': '2.1. Yurt Dışı Araştırma',
-      'yurtici': '2.2. Yurt İçi Araştırma',
-      'uluslararasi': '6.1. Uluslararası Patent',
-      'ulusal': '6.2. Ulusal Patent',
-      'sci': '7.1. SCI/SSCI/AHCI Makale Atfı',
-      'alan': '7.2. Alan Endeksi Makale Atfı',
-      'digerUlusAtif': '7.3. Diğer Uluslararası Makale Atfı',
-      'ulakbimAtif': '7.4. ULAKBİM Makale Atfı',
-      'kitap': '7.5. Uluslararası Kitap Atfı',
-      'guzelUlus': '7.7. Güzel Sanat Uluslararası',
-      'guzelUlus2': '7.8. Güzel Sanat Ulusal',
-      'uluslararasiTeblig': '8.1. Uluslararası Tebliğ',
-      'yokTez': '9.1. YÖK Yılın Doktora Tezi Ödülü',
-      'tubitakBilim': '9.2. TÜBİTAK Bilim Ödülü',
-      'tubaAkademi': '9.3. TÜBA Akademi Ödülü',
-      'yurtdisiBilim': '9.4. Yurt Dışı Bilim Ödülü',
-      'yurticiiBilim': '9.5. Yurt İçi Bilim Ödülü',
-      'guzelUlusJuri': '9.6. Güzel Sanat Uluslararası Ödül',
-      'guzelUlasJuri': '9.7. Güzel Sanat Ulusal Ödül',
-      'mimarlik': '9.8. Mimarlık/Tasarım Yarışması',
-      'yurtdisiBireysel': '5.1. Yurt Dışı Bireysel Etkinlik',
-      'yurticiiBireysel': '5.2. Yurt İçi Bireysel Etkinlik',
-      'yurtdisiGrup': '5.3. Yurt Dışı Grup Etkinlik',
-      'yurticiiGrup': '5.4. Yurt İçi Grup Etkinlik',
-      'tasarim': '4.1. Tasarım',
-    };
-    return turAdlari[f['tur']] ?? f['tur'] ?? f['kategori'];
-  }
-
-  String _faaliyetDetay(Map<String, dynamic> f) {
-    List<String> parcalar = [];
-    if (f['adet'] != null && f['adet'] > 1)
-      parcalar.add('${f['adet']} adet');
-    if (f['kisi'] != null && f['kisi'] > 1)
-      parcalar.add('${f['kisi']} kişi');
-    if (f['quartile'] != null &&
-        (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme'))
-      parcalar.add(f['ahci'] == true ? 'AHCI' : f['quartile']);
-    if (f['rol'] != null) parcalar.add(f['rol']);
-    if (f['ay'] != null) parcalar.add('${f['ay']} ay');
-    return parcalar.join(' · ');
-  }
-
-  Widget _sonucSatiri(String kategori, double puan) {
-    final adlar = {
-      'proje': '1. Proje (max 20)',
-      'arastirma': '2. Araştırma (max 15)',
-      'yayin': '3. Yayın (max 30)',
-      'tasarim': '4. Tasarım (max 15)',
-      'sergi': '5. Sergi (max 15)',
-      'patent': '6. Patent (max 30)',
-      'atif': '7. Atıf (max 30)',
-      'teblig': '8. Tebliğ (max 20)',
-      'odul': '9. Ödül (max 20)',
-    };
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+  // ── Düzenleme modu banneri ───────────────────────────────────
+  Widget _duzenlemeBanneri() {
+    final renk = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: renk.tertiaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(adlar[kategori] ?? kategori,
-              style: const TextStyle(fontSize: 13)),
-          Text(puan.toStringAsFixed(2),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600)),
+          Icon(Icons.edit_outlined, size: 18, color: renk.onTertiaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Geçmiş bir kayıt düzenleniyor. Değişikliklerden sonra tekrar '
+              'hesaplayıp kaydedin.',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.35,
+                  color: renk.onTertiaryContainer),
+            ),
+          ),
+          TextButton(
+            onPressed: _sifirla,
+            child: const Text('Vazgeç'),
+          ),
         ],
       ),
     );
+  }
+
+  // ── Unvan / alan / brüt aylık ────────────────────────────────
+  Widget _kimlikKarti() {
+    final renk = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _alan,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Bilim alanı'),
+              selectedItemBuilder: (_) => BilimAlani.secili.values
+                  .map((ad) => Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(ad,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              items: BilimAlani.kisa.entries
+                  .map((e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(e.value,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() {
+                _alan = v!;
+                _hesaplandimi = false;
+              }),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _unvan,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Kadro unvanı'),
+              items: Unvan.oranlar.entries
+                  .map((e) => DropdownMenuItem(
+                        value: e.key,
+                        child: Text(
+                            '${e.key}  ·  ${(e.value * 100).round()}%',
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() {
+                _unvan = v!;
+                _hesaplandimi = false;
+              }),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: ValueKey(_enYuksekBrut),
+              initialValue: Bicim.sayi(_enYuksekBrut),
+              decoration: InputDecoration(
+                labelText: 'En yüksek Devlet memuru brüt aylığı (₺)',
+                helperText: _katsayiAciklama.isNotEmpty
+                    ? _katsayiAciklama
+                    : 'Güncel değer yükleniyor…',
+                helperStyle: TextStyle(
+                  color: renk.onSurfaceVariant,
+                  fontSize: 11.5,
+                  height: 1.3,
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(Icons.sync,
+                      size: 20,
+                      color: _katsayiYuklendi ? renk.primary : null),
+                  tooltip: 'Güncel değeri internetten çek',
+                  onPressed: () => _katsayiYukle(zorla: true),
+                ),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true),
+              onChanged: (v) {
+                final ayiklanmis =
+                    v.replaceAll('.', '').replaceAll(',', '.').trim();
+                _enYuksekBrut =
+                    double.tryParse(ayiklanmis) ?? _enYuksekBrut;
+                if (_hesaplandimi) setState(() => _hesaplandimi = false);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Boş durum ────────────────────────────────────────────────
+  Widget _bosDurum() {
+    final renk = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+        child: Column(
+          children: [
+            Icon(Icons.playlist_add_outlined,
+                size: 40, color: renk.onSurfaceVariant),
+            const SizedBox(height: 12),
+            Text(
+              'Henüz faaliyet eklenmedi',
+              style: TextStyle(
+                  fontWeight: FontWeight.w600, color: renk.onSurface),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Proje, yayın, atıf, tebliğ ve diğer faaliyet türlerini '
+              'ekleyerek teşvik puanınızı hesaplayın.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12.5, height: 1.4, color: renk.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Kategori kartları ────────────────────────────────────────
+  List<Widget> _kategoriGruplari(Map<String, double> anlik) {
+    final widgetlar = <Widget>[];
+
+    for (final kat in Kategori.sirali) {
+      final ilgili = _faaliyetler
+          .where((f) => f['kategori'] == kat.anahtar)
+          .toList();
+      if (ilgili.isEmpty) continue;
+
+      final puan = anlik[kat.anahtar] ?? 0;
+      final doldu = puan >= kat.tavan - 0.005;
+
+      widgetlar.add(Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _kategoriBasligi(kat, puan, doldu),
+              const Divider(height: 1),
+              for (int i = 0; i < ilgili.length; i++) ...[
+                if (i > 0)
+                  const Divider(height: 1, indent: 14, endIndent: 14),
+                _faaliyetSatiri(
+                  f: ilgili[i],
+                  kat: kat,
+                  index: _faaliyetler.indexOf(ilgili[i]),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ));
+    }
+
+    return widgetlar;
+  }
+
+  Widget _kategoriBasligi(Kategori kat, double puan, bool doldu) {
+    final renk = Theme.of(context).colorScheme;
+    final vurgu = kat.vurgu(context);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      color: kat.zemin(context),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(kat.ikon, size: 18, color: vurgu),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  kat.numarali,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: vurgu,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+              Text(
+                Bicim.puan(puan),
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: vurgu,
+                ),
+              ),
+              Text(
+                ' / ${kat.tavan.toStringAsFixed(0)}',
+                style: TextStyle(
+                    fontSize: 12.5, color: renk.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TavanCubugu(puan: puan, tavan: kat.tavan, renk: vurgu),
+          if (doldu) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 13, color: renk.onSurfaceVariant),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'Bu faaliyet türünün tavanı doldu; fazlası toplama '
+                    'eklenmez (m.8/3).',
+                    style: TextStyle(
+                        fontSize: 11, color: renk.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Faaliyet satırı ──────────────────────────────────────────
+  Widget _faaliyetSatiri({
+    required Map<String, dynamic> f,
+    required Kategori kat,
+    required int index,
+  }) {
+    final renk = Theme.of(context).colorScheme;
+    final vurgu = kat.vurgu(context);
+    final oran = HesaplamaMotoru.faaliyetOrani(f: f, alan: _alan);
+    final puan = oran / 100 * kat.tavan;
+    final aciklama = HesaplamaMotoru.puanAciklamasi(f: f, alan: _alan);
+    final detay = _faaliyetDetay(f);
+    final sayilmiyor = _editorlukSayilmiyor(index);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 11, 6, 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  FaaliyetTuru.ad(f),
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3),
+                ),
+                if (detay.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    detay,
+                    style: TextStyle(
+                        fontSize: 11.5, color: renk.onSurfaceVariant),
+                  ),
+                ],
+                const SizedBox(height: 7),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.functions, size: 13, color: vurgu),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        aciklama,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.4,
+                          color: renk.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (sayilmiyor) ...[
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(Icons.block, size: 12, color: renk.error),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'Toplama katılmıyor: yalnızca bir editörlük '
+                          'dikkate alınır (m.7/4).',
+                          style: TextStyle(fontSize: 11, color: renk.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                Bicim.puan(puan),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  color: sayilmiyor ? renk.onSurfaceVariant : vurgu,
+                  decoration:
+                      sayilmiyor ? TextDecoration.lineThrough : null,
+                ),
+              ),
+              Text(
+                'puan',
+                style:
+                    TextStyle(fontSize: 10, color: renk.onSurfaceVariant),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 19),
+                    color: renk.onSurfaceVariant,
+                    tooltip: 'Düzenle',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _faaliyetDialog(duzenleIndex: index),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 19),
+                    color: renk.onSurfaceVariant,
+                    tooltip: 'Sil',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _faaliyetSil(index),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Sonuç kartı ──────────────────────────────────────────────
+  Widget _sonucKarti({Key? key}) {
+    final tema = Theme.of(context);
+    final renk = tema.colorScheme;
+    final yeterli = _toplamPuan >= HesaplamaMotoru.enAzTesvikPuani;
+    final durumRengi = yeterli ? renk.primary : renk.error;
+
+    final kirilim = Kategori.sirali
+        .where((k) => (_sonuclar[k.anahtar] ?? 0) > 0)
+        .toList();
+
+    return Card(
+      key: key,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sonuç',
+              style: tema.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Puan halkası ve ödeme durumu ──
+            Row(
+              children: [
+                PuanHalkasi(puan: _toplamPuan),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: durumRengi.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              yeterli
+                                  ? Icons.check_circle_outline
+                                  : Icons.error_outline,
+                              size: 14,
+                              color: durumRengi,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              yeterli ? 'Ödemeye uygun' : 'Eşiğin altında',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: durumRengi,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        yeterli
+                            ? 'Aylık ödeme'
+                            : 'Ödeme için en az 30 puan gerekir (m.10/3)',
+                        style: TextStyle(
+                            fontSize: 12, color: renk.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        Bicim.para(_odeme),
+                        style: TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.6,
+                          color: yeterli ? renk.onSurface : renk.error,
+                        ),
+                      ),
+                      if (yeterli)
+                        Text(
+                          '12 ay · yıllık ${Bicim.para(_odeme * 12)}',
+                          style: TextStyle(
+                              fontSize: 11.5, color: renk.onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+            const Divider(),
+            const SizedBox(height: 14),
+
+            Text(
+              'Faaliyet türlerine göre dağılım',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: renk.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (final kat in kirilim) ...[
+              _kirilimSatiri(kat, _sonuclar[kat.anahtar] ?? 0),
+              const SizedBox(height: 12),
+            ],
+
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _kaydet,
+                    icon: Icon(
+                        _duzenlemeModu
+                            ? Icons.update
+                            : Icons.bookmark_add_outlined,
+                        size: 19),
+                    label: Text(_duzenlemeModu ? 'Güncelle' : 'Kaydet'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _pdfOlustur,
+                    icon: const Icon(Icons.download_outlined, size: 19),
+                    label: const Text('PDF'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kirilimSatiri(Kategori kat, double puan) {
+    final renk = Theme.of(context).colorScheme;
+    final vurgu = kat.vurgu(context);
+    return Row(
+      children: [
+        Icon(kat.ikon, size: 15, color: vurgu),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 74,
+          child: Text(
+            kat.ad,
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Expanded(
+          child: TavanCubugu(puan: puan, tavan: kat.tavan, renk: vurgu),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 62,
+          child: Text(
+            '${Bicim.puan(puan)} / ${kat.tavan.toStringAsFixed(0)}',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: renk.onSurface),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _faaliyetDetay(Map<String, dynamic> f) {
+    final parcalar = <String>[];
+    if (f['adet'] != null && f['adet'] > 1) {
+      parcalar.add('${f['adet']} adet');
+    }
+    if (f['kisi'] != null && f['kisi'] > 1) {
+      parcalar.add('${f['kisi']} kişi');
+    }
+    if (f['quartile'] != null &&
+        (f['tur'] == 'sciArastirma' || f['tur'] == 'sciDerleme')) {
+      parcalar.add(f['ahci'] == true ? 'AHCI' : f['quartile']);
+    }
+    if (f['kategori'] == 'proje' && f['rol'] != null) {
+      parcalar.add(f['rol']);
+    }
+    if (f['kategori'] == 'arastirma' && f['ay'] != null) {
+      parcalar.add('${f['ay']} ay');
+    }
+    if (f['kategori'] == 'sergi' && f['tekrar'] == 2) {
+      parcalar.add('2. tekrar etkinlik');
+    }
+    return parcalar.join(' · ');
   }
 }
 
@@ -829,6 +1011,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
   late int _kisi;
   late int _adet;
   late int _ay;
+  late int _tekrar;
 
   @override
   void initState() {
@@ -842,6 +1025,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
     _kisi = m?['kisi'] ?? 1;
     _adet = m?['adet'] ?? 1;
     _ay = m?['ay'] ?? 4;
+    _tekrar = m?['tekrar'] ?? 1;
   }
 
   bool get _duzenlemeModu => widget.mevcutFaaliyet != null;
@@ -876,7 +1060,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
             const SizedBox(height: 12),
 
             DropdownButtonFormField<String>(
-              value: _kategori,
+              initialValue: _kategori,
               decoration: const InputDecoration(
                 labelText: 'Faaliyet Kategorisi',
                 border: OutlineInputBorder(),
@@ -906,13 +1090,14 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 if (_kategori == 'tasarim') _tur = 'tasarim';
                 _adet = 1;
                 _kisi = 1;
+                _tekrar = 1;
               }),
             ),
             const SizedBox(height: 12),
 
             if (_kategori == 'yayin') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Yayın Türü',
                   border: OutlineInputBorder(),
@@ -935,12 +1120,23 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                   DropdownMenuItem(value: 'sesKarmaUlus', child: Text('3.16. Karma Ses/Görüntü (Uluslararası)')),
                   DropdownMenuItem(value: 'sesKisiselUlus2', child: Text('3.17. Kişisel Ses/Görüntü (Ulusal)')),
                 ],
-                onChanged: (v) => setState(() => _tur = v!),
+                onChanged: (v) => setState(() {
+                  _tur = v!;
+                  // Sabit oranlı satırlarda adet puanı etkilemez (m.7/4).
+                  if (HesaplamaMotoru.sabitPuanliYayinTurleri.contains(_tur)) {
+                    _adet = 1;
+                  }
+                }),
               ),
+              if (HesaplamaMotoru.editorlukTurleri.contains(_tur))
+                _kuralNotu(
+                    'm.7/4: Farklı dergilerde de olsa yalnızca bir editörlük '
+                    'dikkate alınır. Birden fazla editörlük eklerseniz '
+                    'toplamda yalnızca en yüksek oranlı olan sayılır.'),
               if (_tur == 'sciArastirma' || _tur == 'sciDerleme') ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _quartile,
+                  initialValue: _quartile,
                   decoration: const InputDecoration(
                     labelText: 'Dergi Çeyreği (Q)',
                     border: OutlineInputBorder(),
@@ -970,7 +1166,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
 
             if (_kategori == 'atif') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Atıf Türü',
                   border: OutlineInputBorder(),
@@ -992,17 +1188,10 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
             ],
 
             if (_kategori == 'teblig') ...[
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  '8.1. Hakemli uluslararası bilimsel konferansta, sempozyumda veya kongrede sözlü olarak sunulan ve bunların kitabında yayımlanan tam bildiri',
-                  style: TextStyle(fontSize: 12, color: Colors.indigo),
-                ),
-              ),
+              _bilgiNotu(
+                  '8.1. Hakemli uluslararası bilimsel konferansta, '
+                  'sempozyumda veya kongrede sözlü olarak sunulan ve '
+                  'bunların kitabında yayımlanan tam bildiri.'),
               const SizedBox(height: 12),
               _kisiSecici(),
               const SizedBox(height: 12),
@@ -1011,7 +1200,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
 
             if (_kategori == 'proje') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Proje Türü',
                   border: OutlineInputBorder(),
@@ -1028,7 +1217,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _rol,
+                initialValue: _rol,
                 decoration: const InputDecoration(
                   labelText: 'Projedeki Rol',
                   border: OutlineInputBorder(),
@@ -1046,7 +1235,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
 
             if (_kategori == 'arastirma') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Araştırma Türü',
                   border: OutlineInputBorder(),
@@ -1073,16 +1262,13 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                   Text('$_ay ay', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
-              const Padding(
-                padding: EdgeInsets.only(left: 8, bottom: 4),
-                child: Text('* Minimum 4 ay',
-                    style: TextStyle(color: Colors.orange, fontSize: 11)),
-              ),
+              _kuralNotu('m.3/ş: Araştırma en az dört ay süreli '
+                  'görevlendirmeyi gerektirir.'),
             ],
 
             if (_kategori == 'patent') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Patent Türü',
                   border: OutlineInputBorder(),
@@ -1102,7 +1288,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
 
             if (_kategori == 'odul') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Ödül Türü',
                   border: OutlineInputBorder(),
@@ -1120,11 +1306,15 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 ],
                 onChanged: (v) => setState(() => _tur = v!),
               ),
+              const SizedBox(height: 12),
+              _kisiSecici(),
+              _kuralNotu('m.8/7: Ödül birden fazla kişiye verilmişse oran '
+                  'kişi sayısına bölünür.'),
             ],
 
             if (_kategori == 'sergi') ...[
               DropdownButtonFormField<String>(
-                value: _tur,
+                initialValue: _tur,
                 decoration: const InputDecoration(
                   labelText: 'Sergi Türü',
                   border: OutlineInputBorder(),
@@ -1138,22 +1328,40 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                 ],
                 onChanged: (v) => setState(() => _tur = v!),
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                initialValue: _tekrar,
+                decoration: const InputDecoration(
+                  labelText: 'Etkinlik Tekrarı',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                      value: 1, child: Text('İlk etkinlik (tam puan)')),
+                  DropdownMenuItem(
+                      value: 2,
+                      child: Text('İkinci (tekrar) etkinlik (yarım puan)')),
+                ],
+                onChanged: (v) => setState(() => _tekrar = v!),
+              ),
+              _kuralNotu(
+                  'm.7/6: Tekrarlayan faaliyetler için en çok iki etkinlik '
+                  'dikkate alınır; ikinci tekrar etkinliğe öncekinin puanının '
+                  'yarısı verilir.'),
             ],
 
             if (_kategori == 'tasarim') ...[
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.brown.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  '4.1. Endüstriyel, çevresel (bina, peyzaj ve iç mekan) veya grafiksel tasarım; sahne, moda veya çalgı tasarımı',
-                  style: TextStyle(fontSize: 12, color: Colors.brown),
-                ),
-              ),
+              _bilgiNotu(
+                  '4.1. Endüstriyel, çevresel (bina, peyzaj ve iç mekan) '
+                  'veya grafiksel tasarım; sahne, moda veya çalgı tasarımı.'),
+              const SizedBox(height: 12),
+              _kisiSecici(),
               const SizedBox(height: 12),
               _adetSecici('Tasarım Adedi'),
+              _kuralNotu(
+                  'm.8/7: Tasarımın paylaşım oranı bulunmadığından oran '
+                  'kişi sayısına bölünür.'),
             ],
 
             const SizedBox(height: 20),
@@ -1170,6 +1378,7 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
                     'quartile': _quartile,
                     'ahci': _ahci,
                     'ay': _ay,
+                    'tekrar': _tekrar,
                   });
                 },
                 icon: Icon(_duzenlemeModu ? Icons.save : Icons.add),
@@ -1179,6 +1388,46 @@ class _FaaliyetEkleSheetState extends State<FaaliyetEkleSheet> {
             const SizedBox(height: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Tablo 4 satır açıklaması için nötr bilgi kutusu.
+  Widget _bilgiNotu(String metin) {
+    final renk = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: renk.surfaceContainerHighest.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        metin,
+        style: TextStyle(
+            fontSize: 12, height: 1.4, color: renk.onSurfaceVariant),
+      ),
+    );
+  }
+
+  /// Yönetmelik kuralına dair kısa hatırlatma.
+  Widget _kuralNotu(String metin) {
+    final renk = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 2, right: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 14, color: renk.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              metin,
+              style: TextStyle(
+                  fontSize: 11.5, height: 1.35, color: renk.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

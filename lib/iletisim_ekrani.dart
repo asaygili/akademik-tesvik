@@ -55,8 +55,8 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-                'E-posta uygulaması açılamadı. Lütfen tesvikakademik@gmail.com adresine manuel olarak yazın.'),
-            backgroundColor: Colors.orange,
+                'E-posta uygulaması açılamadı. Lütfen '
+                'tesvikakademik@gmail.com adresine yazın.'),
             duration: Duration(seconds: 4),
           ),
         );
@@ -78,14 +78,13 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('İletişim'),
-        backgroundColor: renk.primary,
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Formu Temizle',
+            icon: const Icon(Icons.restart_alt),
+            tooltip: 'Formu temizle',
             onPressed: _temizle,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SingleChildScrollView(
@@ -100,10 +99,10 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: renk.primary.withOpacity(0.07),
+                  color: renk.primary.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: renk.primary.withOpacity(0.2)),
+                      color: renk.primary.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -124,12 +123,15 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Uygulama ile ilgili görüş, öneri ve hata bildirimlerinizi '
-                      'aşağıdaki form aracılığıyla iletebilirsiniz. '
-                      'Mesajınız e-posta olarak gönderilecektir.',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.black87),
+                    Text(
+                      'Uygulama ile ilgili görüş, öneri ve hata '
+                      'bildirimlerinizi aşağıdaki form aracılığıyla '
+                      'iletebilirsiniz. Mesajınız e-posta olarak '
+                      'gönderilecektir.',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: renk.onSurfaceVariant),
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -160,9 +162,7 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                       controller: _adController,
                       decoration: const InputDecoration(
                         labelText: 'Ad *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        prefixIcon: Icon(Icons.person_outline),
+                        prefixIcon: Icon(Icons.person_outline, size: 20),
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) => v == null || v.trim().isEmpty
@@ -176,8 +176,6 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                       controller: _soyadController,
                       decoration: const InputDecoration(
                         labelText: 'Soyad *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
                       ),
                       textCapitalization: TextCapitalization.words,
                       validator: (v) => v == null || v.trim().isEmpty
@@ -195,9 +193,7 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                 controller: _epostaController,
                 decoration: const InputDecoration(
                   labelText: 'E-posta *',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: Icon(Icons.email_outlined, size: 20),
                   hintText: 'ornek@universite.edu.tr',
                 ),
                 keyboardType: TextInputType.emailAddress,
@@ -219,10 +215,8 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                 controller: _konuController,
                 decoration: const InputDecoration(
                   labelText: 'Konu *',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  prefixIcon: Icon(Icons.subject_outlined),
-                  hintText: 'Örn: Hata bildirimi, Öneri...',
+                  prefixIcon: Icon(Icons.subject_outlined, size: 20),
+                  hintText: 'Örn. hata bildirimi, öneri…',
                 ),
                 validator: (v) => v == null || v.trim().isEmpty
                     ? 'Konu gerekli'
@@ -236,13 +230,8 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                 controller: _mesajController,
                 decoration: const InputDecoration(
                   labelText: 'Mesaj *',
-                  border: OutlineInputBorder(),
                   alignLabelWithHint: true,
-                  prefixIcon: Padding(
-                    padding: EdgeInsets.only(bottom: 80),
-                    child: Icon(Icons.message_outlined),
-                  ),
-                  hintText: 'Görüş ve önerilerinizi buraya yazınız...',
+                  hintText: 'Görüş ve önerilerinizi buraya yazınız…',
                 ),
                 maxLines: 6,
                 validator: (v) {
@@ -279,7 +268,7 @@ class _IletisimEkraniState extends State<IletisimEkrani> {
                 child: Text(
                   '* Zorunlu alanlar',
                   style: TextStyle(
-                      color: Colors.grey.shade600, fontSize: 11),
+                      color: renk.onSurfaceVariant, fontSize: 11),
                 ),
               ),
 
