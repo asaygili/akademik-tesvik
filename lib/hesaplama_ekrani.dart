@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'aves_ekrani.dart';
+import 'aves_servisi.dart';
 import 'hesaplama_motoru.dart';
 import 'katsayi_servisi.dart';
 import 'pdf_rapor.dart';
@@ -278,13 +279,23 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
       ),
       builder: (ctx) => AvesYukleSheet(
         onEkle: (liste) {
+          final onceki = _faaliyetler.length;
+          final (yeniListe, temizlenen) =
+              AvesServisi.birlestir(_faaliyetler, liste);
           setState(() {
-            _faaliyetler.addAll(liste);
+            _faaliyetler
+              ..clear()
+              ..addAll(yeniListe);
             _hesaplandimi = false;
           });
           Navigator.pop(ctx);
+          final eklenen = yeniListe.length - (temizlenen > 0 ? 0 : onceki);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('${liste.length} faaliyet AVES\'ten eklendi.')));
+              content: Text([
+            if (temizlenen > 0)
+              'Farklı kişinin CV\'si: önceki $temizlenen faaliyet temizlendi.',
+            '$eklenen faaliyet AVES\'ten eklendi.',
+          ].join(' '))));
         },
       ),
     );

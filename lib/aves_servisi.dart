@@ -63,8 +63,35 @@ class AvesServisi {
     return utf8.decode(r.bodyBytes, allowMalformed: true);
   }
 
-  static Future<List<Map<String, dynamic>>> cek(String adres) async =>
-      ayristir(await yayinlarSayfasi(adres), await DergiQ.yukle());
+  /// Yayınları çeker; her kayda hangi CV'den geldiği ('cv') işlenir.
+  static Future<List<Map<String, dynamic>>> cek(String adres) async {
+    final cv = Uri.parse(kokAdres(adres)).host;
+    return [
+      for (final f
+          in ayristir(await yayinlarSayfasi(adres), await DergiQ.yukle()))
+        {...f, 'cv': cv},
+    ];
+  }
+
+  /// AVES'ten seçilen faaliyetleri mevcut listeye ekler. Listede başka bir
+  /// kişinin CV'sinden gelen faaliyet varsa liste o kişiye ait sayılır ve
+  /// tamamen temizlenir; aynı kişide daha önce eklenmiş yayınlar tekrar
+  /// eklenmez. Döner: (yeni liste, temizlenen faaliyet sayısı).
+  static (List<Map<String, dynamic>>, int) birlestir(
+      List<Map<String, dynamic>> mevcut, List<Map<String, dynamic>> yeni) {
+    final cv = yeni.isEmpty ? null : yeni.first['cv'];
+    final baskaKisi =
+        mevcut.any((f) => f['kaynak'] == 'AVES' && f['cv'] != cv);
+    final kalan = baskaKisi ? <Map<String, dynamic>>[] : [...mevcut];
+    final varolan = {
+      for (final f in kalan)
+        if (f['kunye'] != null) f['kunye'],
+    };
+    return (
+      [...kalan, ...yeni.where((f) => !varolan.contains(f['kunye']))],
+      baskaKisi ? mevcut.length : 0,
+    );
+  }
 
   // ── Ayrıştırma ─────────────────────────────────────────────
 

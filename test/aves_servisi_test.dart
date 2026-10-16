@@ -81,6 +81,30 @@ void main() {
     expect(s['teblig'], closeTo(9 / 100 * 20, 1e-9));
   });
 
+  test('farklı kişinin CV\'si yüklenince önceki liste temizlenir', () {
+    Map<String, dynamic> f(String cv, String kunye) =>
+        {'kaynak': 'AVES', 'cv': cv, 'kunye': kunye, 'kategori': 'yayin'};
+    final elle = {'kategori': 'atif', 'tur': 'sci', 'adet': 3};
+
+    // İlk yükleme: elle girilenler korunur.
+    var (liste, temizlenen) =
+        AvesServisi.birlestir([elle], [f('a.cv.nku.edu.tr', 'A1')]);
+    expect(liste.length, 2);
+    expect(temizlenen, 0);
+
+    // Aynı kişi, başka yıl: eklenir; aynı yayın ikinci kez eklenmez.
+    (liste, temizlenen) = AvesServisi.birlestir(liste,
+        [f('a.cv.nku.edu.tr', 'A1'), f('a.cv.nku.edu.tr', 'A2')]);
+    expect(liste.map((e) => e['kunye']), [null, 'A1', 'A2']);
+    expect(temizlenen, 0);
+
+    // Başka kişi: önceki kişinin tüm faaliyetleri temizlenir.
+    (liste, temizlenen) =
+        AvesServisi.birlestir(liste, [f('b.cv.nku.edu.tr', 'B1')]);
+    expect(liste.map((e) => e['kunye']), ['B1']);
+    expect(temizlenen, 3);
+  });
+
   test('CV adresi normalleştirilir', () {
     expect(AvesServisi.kokAdres('asaygili'), 'https://asaygili.cv.nku.edu.tr');
     expect(AvesServisi.kokAdres('http://asaygili.cv.nku.edu.tr/cv/yayinlar/'),
