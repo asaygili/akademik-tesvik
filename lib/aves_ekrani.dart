@@ -24,7 +24,7 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
 
   late final TextEditingController _adres = TextEditingController(
       text: Hive.box('gecmis').get(_adresAnahtari, defaultValue: '') as String);
-  int _yil = DateTime.now().year - 1;
+  int _yil = DateTime.now().year;
   bool _yukleniyor = false;
   String? _hata;
   List<Map<String, dynamic>>? _tumu;
