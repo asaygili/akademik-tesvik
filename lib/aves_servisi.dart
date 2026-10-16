@@ -65,7 +65,8 @@ class AvesServisi {
 
   /// Yayınları ve kişinin unvanını çeker; her kayda hangi CV'den geldiği
   /// ('cv') işlenir.
-  static Future<({List<Map<String, dynamic>> faaliyetler, String? unvan})>
+  static Future<
+      ({List<Map<String, dynamic>> faaliyetler, String? unvan, String? ad})>
       cek(String adres) async {
     final cv = Uri.parse(kokAdres(adres)).host;
     final html = await yayinlarSayfasi(adres);
@@ -74,7 +75,28 @@ class AvesServisi {
         for (final f in ayristir(html, await DergiQ.yukle())) {...f, 'cv': cv},
       ],
       unvan: unvan(html),
+      ad: adSoyad(html),
     );
+  }
+
+  /// Sayfa başlığındaki ad soyad ("Doç. Dr. AHMET SAYGILI" → "Ahmet Saygılı").
+  /// AVES adı büyük harfle, unvanı karışık harfle yazar.
+  static String? adSoyad(String html) {
+    final h1 = RegExp(r'<h1[^>]*page-header[^>]*>(.*?)<', dotAll: true)
+        .firstMatch(html)
+        ?.group(1);
+    if (h1 == null) return null;
+    String kucuk(String s) => s
+        .replaceAll('I', 'ı')
+        .replaceAll('İ', 'i')
+        .toLowerCase();
+    final kelimeler = [
+      for (final k in _duzMetin(h1).split(' '))
+        if (k.length > 1 &&
+            RegExp(r'^[A-ZÇĞİÖŞÜ]+$').hasMatch(k))
+          k[0] + kucuk(k.substring(1)),
+    ];
+    return kelimeler.isEmpty ? null : kelimeler.join(' ');
   }
 
   /// Sayfa başlığındaki ("Doç. Dr. AHMET SAYGILI") unvanın uygulamadaki

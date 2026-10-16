@@ -5,6 +5,7 @@ import 'aves_ekrani.dart';
 import 'aves_servisi.dart';
 import 'hesaplama_motoru.dart';
 import 'katsayi_servisi.dart';
+import 'openalex_ekrani.dart';
 import 'pdf_rapor.dart';
 import 'puan_gostergesi.dart';
 import 'tema.dart';
@@ -303,6 +304,33 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
     );
   }
 
+  void _openAlexDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => OpenAlexAtifSheet(
+        onEkle: (atiflar, yil) {
+          setState(() {
+            // Aynı yılın daha önce OpenAlex'ten eklenmiş atıfları yenilenir.
+            _faaliyetler.removeWhere(
+                (f) => f['kaynak'] == 'OpenAlex' && f['yil'] == yil);
+            _faaliyetler.addAll(atiflar);
+            _hesaplandimi = false;
+          });
+          Navigator.pop(ctx);
+          final toplam =
+              atiflar.fold<int>(0, (t, f) => t + (f['adet'] as int));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content:
+                  Text('$yil yılı için $toplam atıf OpenAlex\'ten eklendi.')));
+        },
+      ),
+    );
+  }
+
   // ── Anlık kategori puanları (canlı geri bildirim) ────────────
   Map<String, double> get _anlikSonuclar => HesaplamaMotoru.toplamHesapla(
         alan: _alan,
@@ -402,6 +430,15 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openAlexDialog,
+                icon: const Icon(Icons.format_quote_outlined, size: 20),
+                label: const Text('Atıfları OpenAlex\'ten yıllara göre getir'),
+              ),
             ),
 
             const SizedBox(height: 16),

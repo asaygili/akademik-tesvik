@@ -50,6 +50,10 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
       final sonuc = await AvesServisi.cek(_adres.text);
       final liste = sonuc.faaliyetler;
       await Hive.box('gecmis').put(_adresAnahtari, _adres.text.trim());
+      // OpenAlex atıf aramasında ad olarak kullanılır.
+      if (sonuc.ad != null) {
+        await Hive.box('gecmis').put('aves_ad_soyad', sonuc.ad);
+      }
       setState(() {
         _tumu = liste;
         _unvan = sonuc.unvan;
