@@ -63,14 +63,37 @@ class AvesServisi {
     return utf8.decode(r.bodyBytes, allowMalformed: true);
   }
 
-  /// Yayınları çeker; her kayda hangi CV'den geldiği ('cv') işlenir.
-  static Future<List<Map<String, dynamic>>> cek(String adres) async {
+  /// Yayınları ve kişinin unvanını çeker; her kayda hangi CV'den geldiği
+  /// ('cv') işlenir.
+  static Future<({List<Map<String, dynamic>> faaliyetler, String? unvan})>
+      cek(String adres) async {
     final cv = Uri.parse(kokAdres(adres)).host;
-    return [
-      for (final f
-          in ayristir(await yayinlarSayfasi(adres), await DergiQ.yukle()))
-        {...f, 'cv': cv},
-    ];
+    final html = await yayinlarSayfasi(adres);
+    return (
+      faaliyetler: [
+        for (final f in ayristir(html, await DergiQ.yukle())) {...f, 'cv': cv},
+      ],
+      unvan: unvan(html),
+    );
+  }
+
+  /// Sayfa başlığındaki ("Doç. Dr. AHMET SAYGILI") unvanın uygulamadaki
+  /// karşılığı (Unvan.oranlar anahtarı); tanınmazsa null.
+  static String? unvan(String html) {
+    final h1 = RegExp(r'<h1[^>]*page-header[^>]*>(.*?)<', dotAll: true)
+        .firstMatch(html)
+        ?.group(1);
+    if (h1 == null) return null;
+    final u = norm(h1);
+    if (u.startsWith('prof')) return 'Profesör';
+    if (u.contains('yrd doc')) return 'Dr. Öğr. Üyesi';
+    if (u.startsWith('doc')) return 'Doçent';
+    if (RegExp(r'\bara?s(tirma)? gor').hasMatch(u)) {
+      return 'Araştırma Görevlisi';
+    }
+    if (RegExp(r'\bogr(etim)? gor').hasMatch(u)) return 'Öğretim Görevlisi';
+    if (RegExp(r'\bogr(etim)? uye').hasMatch(u)) return 'Dr. Öğr. Üyesi';
+    return null;
   }
 
   /// AVES'ten seçilen faaliyetleri mevcut listeye ekler. Listede başka bir

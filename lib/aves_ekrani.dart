@@ -10,7 +10,8 @@ import 'aves_servisi.dart';
 import 'tema.dart';
 
 class AvesYukleSheet extends StatefulWidget {
-  final void Function(List<Map<String, dynamic>>) onEkle;
+  final void Function(List<Map<String, dynamic>> faaliyetler, String? unvan)
+      onEkle;
 
   const AvesYukleSheet({super.key, required this.onEkle});
 
@@ -27,6 +28,7 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
   bool _yukleniyor = false;
   String? _hata;
   List<Map<String, dynamic>>? _tumu;
+  String? _unvan;
   final Set<int> _secili = {};
 
   List<Map<String, dynamic>> get _yildakiler =>
@@ -45,10 +47,12 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
       _hata = null;
     });
     try {
-      final liste = await AvesServisi.cek(_adres.text);
+      final sonuc = await AvesServisi.cek(_adres.text);
+      final liste = sonuc.faaliyetler;
       await Hive.box('gecmis').put(_adresAnahtari, _adres.text.trim());
       setState(() {
         _tumu = liste;
+        _unvan = sonuc.unvan;
         _yilSeciminiYenile();
         if (liste.isEmpty) _hata = 'Bu CV\'de teşvikte puan alan yayın bulunamadı.';
       });
@@ -149,6 +153,7 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
           if (_tumu != null && _tumu!.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
+              '${_unvan == null ? '' : 'Unvan: $_unvan · '}'
               '$_yil: ${yildakiler.length} yayın '
               '(CV\'de toplam ${_tumu!.length} teşvik kapsamında yayın)',
               style: const TextStyle(fontWeight: FontWeight.w600),
@@ -190,7 +195,7 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
                     : () => widget.onEkle([
                           for (final i in _secili.toList()..sort())
                             yildakiler[i]
-                        ]),
+                        ], _unvan),
                 icon: const Icon(Icons.add, size: 20),
                 label: Text('${_secili.length} faaliyeti ekle'),
               ),

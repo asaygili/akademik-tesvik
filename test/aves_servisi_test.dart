@@ -105,6 +105,20 @@ void main() {
     expect(temizlenen, 3);
   });
 
+  test('sayfa başlığındaki unvan tanınır', () {
+    String? u(String baslik) => AvesServisi.unvan(
+        '<h1 class="page-header">$baslik <small></small></h1>');
+    expect(u('Doç. Dr.  AHMET SAYGILI'), 'Doçent');
+    expect(u('Prof. Dr. AYŞE YILMAZ'), 'Profesör');
+    expect(u('Dr. Öğr. Üyesi MEHMET KAYA'), 'Dr. Öğr. Üyesi');
+    expect(u('Yrd. Doç. Dr. ALİ VELİ'), 'Dr. Öğr. Üyesi');
+    expect(u('Arş. Gör. Dr. ZEYNEP ÇAKIR'), 'Araştırma Görevlisi');
+    expect(u('Öğr. Gör. Dr. CAN ÖZ'), 'Öğretim Görevlisi');
+    expect(u('Öğr. Gör. GÜL ŞEN'), 'Öğretim Görevlisi');
+    expect(u('AHMET SAYGILI'), isNull);
+    expect(AvesServisi.unvan('<p>başlık yok</p>'), isNull);
+  });
+
   test('CV adresi normalleştirilir', () {
     expect(AvesServisi.kokAdres('asaygili'), 'https://asaygili.cv.nku.edu.tr');
     expect(AvesServisi.kokAdres('http://asaygili.cv.nku.edu.tr/cv/yayinlar/'),
