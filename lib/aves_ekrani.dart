@@ -3,7 +3,6 @@
 // AVES CV'den yayınları çekip seçilen yıla ait olanları faaliyet olarak
 // eklemeye yarayan alt sayfa.
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -97,13 +96,7 @@ class _AvesYukleSheetState extends State<AvesYukleSheet> {
             style: TextStyle(fontSize: 12, color: renk.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
-          if (kIsWeb)
-            Text(
-              'Tarayıcı sürümünde AVES\'e doğrudan erişilemez (CORS). '
-              'Bu özelliği Android, iOS ya da masaüstü uygulamasında kullanın.',
-              style: TextStyle(color: renk.error),
-            )
-          else ...[
+          ...[
             Row(
               children: [
                 Expanded(

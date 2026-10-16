@@ -6,12 +6,19 @@
 // ile aynı veri ve aynı eşleştirme kuralları kullanılır.
 
 import 'dart:convert';
-import 'dart:io' show GZipCodec;
 
+import 'package:archive/archive.dart' show GZipDecoder;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
 class AvesServisi {
+  /// Web sürümünde AVES'e doğrudan erişilemediği (CORS) için kullanılan
+  /// Cloudflare Worker (cloudflare/aves-proxy). Derlemede
+  /// --dart-define=AVES_PROXY=… ile değiştirilebilir.
+  static const proxy = String.fromEnvironment('AVES_PROXY',
+      defaultValue: 'https://aves-proxy.aves-proxy.workers.dev');
+
   static const _basliklar = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
         'AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
@@ -31,6 +38,16 @@ class AvesServisi {
   /// bu yüzden önce ana sayfa ziyaret edilip `ci_session` çerezi alınır.
   static Future<String> yayinlarSayfasi(String adres) async {
     final kok = kokAdres(adres);
+    if (kIsWeb) {
+      final r = await http
+          .get(Uri.parse(proxy)
+              .replace(queryParameters: {'cv': Uri.parse(kok).host}))
+          .timeout(const Duration(seconds: 30));
+      if (r.statusCode != 200) {
+        throw Exception('AVES çekilemedi (${r.statusCode}): ${r.body}');
+      }
+      return utf8.decode(r.bodyBytes, allowMalformed: true);
+    }
     final ilk = await http
         .get(Uri.parse('$kok/'), headers: _basliklar)
         .timeout(const Duration(seconds: 15));
@@ -207,7 +224,7 @@ class DergiQ {
   static Future<DergiQ> yukle() async {
     if (_onbellek != null) return _onbellek!;
     final veri = await rootBundle.load('assets/yok_dergi_q.json.gz');
-    final metin = utf8.decode(GZipCodec().decode(veri.buffer.asUint8List()));
+    final metin = utf8.decode(GZipDecoder().decodeBytes(veri.buffer.asUint8List()));
     return _onbellek = DergiQ(
         (jsonDecode(metin) as Map<String, dynamic>)['dergiler']
             as Map<String, dynamic>);
