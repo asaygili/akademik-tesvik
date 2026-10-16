@@ -278,7 +278,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => AvesYukleSheet(
-        onEkle: (liste) {
+        onEkle: (liste, unvan) {
           final onceki = _faaliyetler.length;
           final (yeniListe, temizlenen) =
               AvesServisi.birlestir(_faaliyetler, liste);
@@ -286,6 +286,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
             _faaliyetler
               ..clear()
               ..addAll(yeniListe);
+            if (unvan != null) _unvan = unvan;
             _hesaplandimi = false;
           });
           Navigator.pop(ctx);
@@ -295,6 +296,7 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
             if (temizlenen > 0)
               'Farklı kişinin CV\'si: önceki $temizlenen faaliyet temizlendi.',
             '$eklenen faaliyet AVES\'ten eklendi.',
+            if (unvan != null) 'Unvan: $unvan.',
           ].join(' '))));
         },
       ),
@@ -523,6 +525,8 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              // Unvan AVES'ten değişince açılır listenin de yenilenmesi için.
+              key: ValueKey(_unvan),
               initialValue: _unvan,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Kadro unvanı'),
