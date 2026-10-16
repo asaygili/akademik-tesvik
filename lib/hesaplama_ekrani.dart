@@ -1,6 +1,7 @@
 // lib/hesaplama_ekrani.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'aves_ekrani.dart';
 import 'hesaplama_motoru.dart';
 import 'katsayi_servisi.dart';
 import 'pdf_rapor.dart';
@@ -252,11 +253,38 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
             duzenleIndex != null ? _faaliyetler[duzenleIndex] : null,
         onKaydet: (f) {
           if (duzenleIndex != null) {
-            _faaliyetGuncelle(duzenleIndex, f);
+            // AVES'ten gelen künye ve yıl bilgisi düzenlemede korunur.
+            final eski = _faaliyetler[duzenleIndex];
+            _faaliyetGuncelle(duzenleIndex, {
+              for (final k in const ['kunye', 'yil', 'kaynak'])
+                if (eski[k] != null) k: eski[k],
+              ...f,
+            });
           } else {
             _faaliyetEkle(f);
           }
           Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
+  void _avesDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => AvesYukleSheet(
+        onEkle: (liste) {
+          setState(() {
+            _faaliyetler.addAll(liste);
+            _hesaplandimi = false;
+          });
+          Navigator.pop(ctx);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${liste.length} faaliyet AVES\'ten eklendi.')));
         },
       ),
     );
@@ -343,13 +371,24 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
               ..._kategoriGruplari(anlik),
 
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _faaliyetDialog,
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Faaliyet ekle'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _faaliyetDialog,
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text('Faaliyet ekle'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _avesDialog,
+                    icon: const Icon(Icons.cloud_download_outlined, size: 20),
+                    label: const Text('AVES CV\'den yükle'),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 16),
@@ -959,6 +998,10 @@ class _HesaplamaEkraniState extends State<HesaplamaEkrani> {
 
   String _faaliyetDetay(Map<String, dynamic> f) {
     final parcalar = <String>[];
+    final kunye = f['kunye'] as String?;
+    if (kunye != null) {
+      parcalar.add(kunye.length > 90 ? '${kunye.substring(0, 90)}…' : kunye);
+    }
     if (f['adet'] != null && f['adet'] > 1) {
       parcalar.add('${f['adet']} adet');
     }
