@@ -302,8 +302,13 @@ class DergiQ {
             as Map<String, dynamic>);
   }
 
-  static final _son = RegExp(r',\s*(vol|volume|cilt|ss|pp|no|sayı)\b',
-      caseSensitive: false);
+  // Dergi adından sonra cilt/sayfa gelir; erken görünüm (early access)
+  // makalelerde cilt olmadığından doğrudan "Ekim, 2026" gelebilir.
+  static final _son = RegExp(
+      r',\s*(vol|volume|cilt|ss|pp|no|sayı|ocak|şubat|mart|nisan|mayıs|'
+      r'haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\b|,\s*(19|20)\d{2}\.?\s*$',
+      caseSensitive: false,
+      unicode: true);
 
   /// Künye "Yazarlar, Başlık, Dergi, vol. …" biçimindedir; dergi adı
   /// başlıktan sonraki son 1-4 virgüllü parçada TAM eşleşmeyle aranır.

@@ -66,6 +66,21 @@ void main() {
     expect(f[4]['kategori'], 'teblig');
   });
 
+  test('cilt/sayfa bilgisi olmayan (erken görünüm) künyede dergi bulunur', () {
+    final mt = DergiQ({
+      '0025-5300': ['Materials Testing', {'2024': 1, '2025': 2}],
+    });
+    expect(
+        mt.q(
+            2026,
+            'ÖZMEN NİHAT EREN,YERLİKAYA TARIK, Machine learning based '
+            'microstructure classification using SEM images and morphological '
+            'features, Materials Testing, Ekim, 2026.'),
+        'Q2');
+    expect(mt.q(2025, 'A B, Başlık, Materials Testing, 2025.'), 'Q2');
+    expect(mt.q(2024, 'A B, Başlık, Materials Testing, Şubat, 2024.'), 'Q1');
+  });
+
   test('Q bulunamazsa en alt katsayı', () {
     final f = AvesServisi.ayristir(html);
     expect(f[0]['quartile'], 'Q4');
