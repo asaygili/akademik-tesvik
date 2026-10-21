@@ -20,7 +20,8 @@ class AkademikTesvik extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Akademik Teşvik',
+      // Web'de sekme başlığını belirler; index.html ile aynı kalmalı.
+      title: 'Akademik Teşvik Hesaplama',
       debugShowCheckedModeBanner: false,
       theme: AkademikTema.acik(),
       darkTheme: AkademikTema.koyu(),
