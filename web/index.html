@@ -1,46 +1,156 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
   <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    Alt dizinden yayımlandığı için base href derleme sırasında
+    `flutter build web --base-href` değeriyle değiştirilir.
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <title>Akademik Teşvik Hesaplama</title>
+  <meta name="description" content="Akademik Teşvik Ödeneği Yönetmeliği'ne göre akademik teşvik puanınızı ve aylık ödeme tutarınızı hesaplayın. Proje, araştırma, yayın, tasarım, sergi, patent, atıf, tebliğ ve ödül faaliyetleri Tablo 4 katsayılarıyla değerlendirilir.">
+  <meta name="keywords" content="akademik teşvik, teşvik puanı hesaplama, akademik teşvik ödeneği, yönetmelik, YÖKSİS, öğretim üyesi">
+  <meta name="author" content="Ahmet Saygılı">
 
-  <!-- iOS meta tags & icons -->
+  <meta name="theme-color" content="#F6F7FB" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#12151A" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Paylaşım kartı -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="tr_TR">
+  <meta property="og:site_name" content="Akademik Teşvik Hesaplama">
+  <meta property="og:title" content="Akademik Teşvik Hesaplama">
+  <meta property="og:description" content="Akademik Teşvik Ödeneği Yönetmeliği'ne göre teşvik puanınızı ve aylık ödemenizi hesaplayın.">
+  <meta property="og:image" content="https://asaygili.github.io/akademik-tesvik/icons/Icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Akademik Teşvik Hesaplama">
+  <meta name="twitter:description" content="Akademik Teşvik Ödeneği Yönetmeliği'ne göre teşvik puanınızı ve aylık ödemenizi hesaplayın.">
+  <meta name="twitter:image" content="https://asaygili.github.io/akademik-tesvik/icons/Icon-512.png">
+
+  <!-- iOS -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="akademik_tesvik">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Akademik Teşvik">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>akademik_tesvik</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --zemin: #F6F7FB;
+      --yazi: #1A1C1E;
+      --soluk: #5A6472;
+      --vurgu: #1B4E8C;
+      --iz: rgba(27, 78, 140, 0.18);
+      --kehribar: #C98A10;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --zemin: #12151A;
+        --yazi: #E4E6EA;
+        --soluk: #98A0AC;
+        --vurgu: #A9C7F0;
+        --iz: rgba(169, 199, 240, 0.20);
+        --kehribar: #F6B83F;
+      }
+    }
+
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--zemin); }
+
+    #acilis {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      background: var(--zemin);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      opacity: 1;
+      transition: opacity .35s ease;
+    }
+    #acilis.gizle { opacity: 0; pointer-events: none; }
+
+    #acilis svg { width: 104px; height: 104px; }
+    #acilis .iz { stroke: var(--iz); }
+    #acilis .dolgu {
+      stroke: var(--vurgu);
+      stroke-dashoffset: 172.44;
+      animation: dol 2.4s ease-in-out infinite;
+    }
+    #acilis .esik { stroke: var(--kehribar); }
+
+    @keyframes dol {
+      0%   { stroke-dashoffset: 172.44; }
+      45%  { stroke-dashoffset: 48.28; }
+      55%  { stroke-dashoffset: 48.28; }
+      100% { stroke-dashoffset: 172.44; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #acilis .dolgu { animation: none; stroke-dashoffset: 48.28; }
+    }
+
+    #acilis .ad {
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: -0.2px;
+      color: var(--yazi);
+    }
+    #acilis .alt {
+      margin-top: -14px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      text-align: center;
+      max-width: 280px;
+      padding: 0 24px;
+      color: var(--soluk);
+    }
+    #acilis .not {
+      position: absolute;
+      bottom: 28px;
+      font-size: 11.5px;
+      color: var(--soluk);
+      opacity: .75;
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="acilis" role="status" aria-live="polite" aria-label="Uygulama yükleniyor">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <g transform="rotate(140 50 50)" fill="none"
+         stroke-width="11" stroke-linecap="round">
+        <circle class="iz" cx="50" cy="50" r="38"
+                stroke-dasharray="172.44 66.32"/>
+        <circle class="dolgu" cx="50" cy="50" r="38"
+                stroke-dasharray="172.44 238.76"/>
+      </g>
+      <line class="esik" x1="25.57" y1="30.91" x2="14.54" y2="22.30"
+            stroke-width="3.2" stroke-linecap="round"/>
+    </svg>
+    <div class="ad">Akademik Teşvik Hesaplama</div>
+    <div class="alt">Akademik Teşvik Ödeneği Yönetmeliği'ne göre puan ve ödeme hesabı</div>
+    <div class="not">Yükleniyor…</div>
+    <noscript>
+      <div class="alt">Bu uygulamanın çalışması için tarayıcınızda
+      JavaScript'in etkin olması gerekir.</div>
+    </noscript>
+  </div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <script>
+    // Flutter ilk kareyi çizince açılış ekranı yumuşak biçimde kaldırılır.
+    window.addEventListener('flutter-first-frame', function () {
+      var e = document.getElementById('acilis');
+      if (!e) return;
+      e.classList.add('gizle');
+      setTimeout(function () { e.remove(); }, 400);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,23 +1,29 @@
 {
-    "name": "akademik_tesvik",
-    "short_name": "akademik_tesvik",
+    "name": "Akademik Teşvik Hesaplama",
+    "short_name": "Akademik Teşvik",
+    "lang": "tr",
+    "dir": "ltr",
     "start_url": ".",
+    "scope": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F6F7FB",
+    "theme_color": "#1B4E8C",
+    "description": "Akademik Teşvik Ödeneği Yönetmeliği'ne göre akademik teşvik puanı ve aylık ödeme hesaplama aracı.",
+    "categories": ["education", "productivity", "utilities"],
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-maskable-192.png",
